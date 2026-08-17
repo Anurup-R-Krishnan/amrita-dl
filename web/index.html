@@ -578,45 +578,16 @@
         </div>
     </div>
 
-    <!-- Ultra-Clean Swiss Typographic Footer -->
-    <footer class="bg-white text-gray-700 border-t-2 border-amrita-maroon mt-auto py-8">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div class="flex items-center space-x-3">
-                    <div class="w-8 h-8 bg-amrita-maroon text-white font-black text-base rounded-lg flex items-center justify-center tracking-tighter select-none shrink-0">
-                        A
-                    </div>
-                    <div>
-                        <h2 class="font-extrabold text-xs text-amrita-maroon uppercase tracking-wider leading-none">
-                            AMRITA VISHWA VIDYAPEETHAM
-                        </h2>
-                        <p class="text-[11px] text-gray-500 font-medium mt-0.5">
-                            Centralized Examination Paper Archive
-                        </p>
-                    </div>
-                </div>
-                <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-semibold text-gray-600">
-                    <button @click="resetAll()" class="hover:text-amrita-maroon transition-colors">
-                        Reset Filters
-                    </button>
-                    <a href="#filters" @click="filters.department = 'Computer Science & Engineering'; executeSearch()" class="hover:text-amrita-maroon transition-colors">
-                        Computer Science
-                    </a>
-                    <a href="#filters" @click="filters.department = 'Electronics & Communication Engineering'; executeSearch()" class="hover:text-amrita-maroon transition-colors">
-                        Electronics
-                    </a>
-                    <a href="#filters" @click="filters.department = 'Mechanical Engineering'; executeSearch()" class="hover:text-amrita-maroon transition-colors">
-                        Mechanical
-                    </a>
-                </div>
+    <!-- Ultra-Minimal Footer -->
+    <footer class="bg-white text-gray-700 border-t-2 border-amrita-maroon mt-auto py-6">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center space-x-2 text-xs font-bold text-amrita-maroon uppercase tracking-wider">
+                <span>AMRITA VISHWA VIDYAPEETHAM</span>
+                <span class="text-gray-300">•</span>
+                <span class="text-gray-500 font-medium normal-case tracking-normal">Centralized Examination Paper Archive</span>
             </div>
-            <div class="border-t border-gray-100 pt-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-gray-500 font-medium">
-                <div x-text="`© ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham. All rights reserved.`">
-                    © 2026 Amrita Vishwa Vidyapeetham. All rights reserved.
-                </div>
-                <div class="font-mono text-gray-400">
-                    Verified Academic Repository
-                </div>
+            <div class="text-xs text-gray-500 font-medium" x-text="`© ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham. All rights reserved.`">
+                © 2026 Amrita Vishwa Vidyapeetham. All rights reserved.
             </div>
         </div>
     </footer>
