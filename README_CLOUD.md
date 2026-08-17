@@ -1,10 +1,10 @@
-# ☁️ Amrita Exam Papers — 100% Free Cloud Deployment Guide
+# Amrita Exam Papers -- 100% Free Cloud Deployment Guide
 
-This guide details how to host the **Amrita Exam Papers Search Engine** completely free ($0/month forever) with enterprise-grade performance, SSL certificates, global CDN, and automatic DDoS protection.
+This guide details how to host the Amrita Exam Papers Search Engine completely free ($0/month forever) with enterprise-grade performance, SSL certificates, global CDN, and automatic DDoS protection.
 
 ---
 
-## 🏛️ Recommended Stack (100% Free Forever)
+## Recommended Stack (100% Free Forever)
 
 | Component | Service | Cost | Function |
 | :--- | :--- | :--- | :--- |
@@ -15,7 +15,7 @@ This guide details how to host the **Amrita Exam Papers Search Engine** complete
 
 ---
 
-## 📦 Step 1: Generate Cloud Deployment Bundle
+## Step 1: Generate Cloud Deployment Bundle
 
 On your local development machine, run the automated bundle script:
 
@@ -27,17 +27,17 @@ This compiles the optimized release binary and bundles `index.db` and `amrita-ex
 
 ---
 
-## ☁️ Step 2: Provision Oracle Cloud (OCI) Instance
+## Step 2: Provision Oracle Cloud (OCI) Instance
 
 1. Create a free account at [oracle.com/cloud/free](https://www.oracle.com/cloud/free/).
 2. Navigate to **Compute > Instances > Create Instance**.
 3. Select **Image**: Ubuntu 22.04 LTS (or Debian 12 ARM64).
-4. Select **Shape**: `VM.Standard.A1.Flex` (Assign 2 to 4 OCPUs and 12–24 GB RAM under Always Free).
+4. Select **Shape**: `VM.Standard.A1.Flex` (Assign 2 to 4 OCPUs and 12-24 GB RAM under Always Free).
 5. Add your SSH Public Key and click **Create**.
 
 ---
 
-## 🚀 Step 3: Server Setup & Deployment
+## Step 3: Server Setup & Deployment
 
 1. SSH into your OCI instance:
    ```bash
@@ -71,7 +71,7 @@ This compiles the optimized release binary and bundles `index.db` and `amrita-ex
 
 ---
 
-## 🔒 Step 4: Configure Cloudflare Tunnel (Zero Open Ports)
+## Step 4: Configure Cloudflare Tunnel (Zero Open Ports)
 
 Using Cloudflare Tunnels exposes your app over HTTPS without opening port 80/443 on your OCI firewall.
 
@@ -90,7 +90,7 @@ Your application is now live worldwide over HTTPS with instant SSL!
 
 ---
 
-## 📊 Step 5: Free Monitoring & Uptime Alerts
+## Step 5: Free Monitoring & Uptime Alerts
 
 1. Sign up for a free account at [uptimerobot.com](https://uptimerobot.com) or [betterstack.com](https://betterstack.com).
 2. Create an **HTTP(s) Monitor**:

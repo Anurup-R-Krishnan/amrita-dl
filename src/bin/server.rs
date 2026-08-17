@@ -916,7 +916,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(8080);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    info!("🚀 Amrita Exam Papers Search Server listening on http://0.0.0.0:{port}");
+    info!("Amrita Exam Papers Search Server listening on http://0.0.0.0:{port}");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app)
