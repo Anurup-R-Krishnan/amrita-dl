@@ -169,12 +169,12 @@ fn format_semester(sem: &str) -> String {
 
 fn format_exam_type(exam: &str) -> String {
     match exam.trim() {
-        "EndSem" => "End Semester Examination".to_string(),
-        "MidTerm" => "Mid Term Assessment".to_string(),
-        "Supply" => "Supplementary Examination".to_string(),
-        "First Assessment" | "Ass1" | "Ass 1" | "AssI" => "Continuous Assessment I".to_string(),
-        "Second Assessment" | "Ass2" | "Ass 2" | "AssII" => "Continuous Assessment II".to_string(),
-        "Third Assessment" | "Ass3" | "Ass 3" | "AssIII" => "Continuous Assessment III".to_string(),
+        "EndSem" => "End Sem".to_string(),
+        "MidTerm" => "Mid Sem".to_string(),
+        "Supply" => "Supply".to_string(),
+        "First Assessment" | "Ass1" | "Ass 1" | "AssI" => "CA I".to_string(),
+        "Second Assessment" | "Ass2" | "Ass 2" | "AssII" => "CA II".to_string(),
+        "Third Assessment" | "Ass3" | "Ass 3" | "AssIII" => "CA III".to_string(),
         _ => exam.to_string(),
     }
 }

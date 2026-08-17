@@ -92,12 +92,12 @@
 </head>
 <body class="bg-white text-amrita-ink font-sans min-h-full flex flex-col antialiased selection:bg-amrita-maroon selection:text-white" x-data="archiveEngine()" @keydown.window.escape="activePdf = null; suggestions = []">
 
-    <!-- Amrita Brand Maroon Hero Banner (Matching Guidelines Grid Visual) -->
-    <section class="bg-amrita-maroon text-white py-12 sm:py-16 px-4 sm:px-6 lg:px-8 relative z-30">
+    <!-- Amrita Brand Maroon Hero Banner (Compact for above-the-fold) -->
+    <section class="bg-amrita-maroon text-white py-8 sm:py-10 px-4 sm:px-6 lg:px-8 relative z-30">
         <!-- Grid Pattern Background Layer -->
         <div class="absolute inset-0 grid-pattern overflow-hidden pointer-events-none"></div>
 
-        <div class="max-w-7xl mx-auto relative z-40 space-y-6">
+        <div class="max-w-7xl mx-auto relative z-40 space-y-4">
             
             <!-- Brand Guideline Style Typography Box Badges -->
             <div>
@@ -106,8 +106,8 @@
                 </div>
             </div>
 
-            <p class="text-white/90 text-sm sm:text-base max-w-2xl font-medium">
-                Search over 19,600 verified examination papers across Computer Science, Electronics, Mechanical, Mathematics, and Interdisciplinary programs.
+            <p class="text-white/80 text-xs sm:text-sm max-w-2xl font-medium">
+                Search 19,600 verified examination papers across all Amrita programs.
             </p>
 
             <!-- Autocomplete Search Console QoS -->
@@ -115,7 +115,7 @@
                 <form @submit.prevent="page = 1; executeSearch()" class="relative" role="search">
                     <div class="flex items-center bg-white rounded-xl shadow-2xl overflow-hidden p-1 border-2 border-white/20 focus-within:border-amrita-gold transition-all">
                         <div class="pl-4 pr-2 text-gray-400">
-                            <i class="fa-solid fa-magnifying-glass text-lg"></i>
+                            <i class="fa-solid fa-magnifying-glass text-base"></i>
                         </div>
                         <input type="text" 
                                x-model="searchQuery" 
@@ -123,9 +123,9 @@
                                @keydown.arrow-down.prevent="navigateSuggest(1)"
                                @keydown.arrow-up.prevent="navigateSuggest(-1)"
                                @keydown.enter="selectCurrentSuggest()"
-                               placeholder="Search by course code, title, or exam keyword (e.g. 19CSE301, Operating Systems)..." 
+                               placeholder="Search by course code, title, or keyword..." 
                                aria-label="Search exam papers by code, title, or keyword"
-                               class="w-full text-amrita-ink placeholder-gray-400 font-semibold text-sm sm:text-base focus:outline-none px-2 py-3">
+                               class="w-full text-amrita-ink placeholder-gray-400 font-semibold text-sm focus:outline-none px-2 py-2.5">
                         
                         <template x-if="searchQuery">
                             <button type="button" @click="searchQuery = ''; suggestions = []; executeSearch()" aria-label="Clear search text" class="px-3 text-gray-400 hover:text-gray-600">
@@ -133,7 +133,7 @@
                             </button>
                         </template>
 
-                        <button type="submit" aria-label="Submit search" class="bg-amrita-maroon hover:bg-amrita-dark text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors shrink-0">
+                        <button type="submit" aria-label="Submit search" class="bg-amrita-maroon hover:bg-amrita-dark text-white font-bold px-5 py-2.5 rounded-lg text-sm transition-colors shrink-0">
                             Search
                         </button>
                     </div>
@@ -308,17 +308,26 @@
             </div>
         </div>
 
-        <!-- Result Overview Stats Header with Sort & Per-Page Controls -->
+        <!-- Result Overview Stats Header with Sort, Per-Page, View Toggle Controls -->
         <div id="archive" class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4">
             <span class="font-semibold text-xs text-gray-600">Showing <strong x-text="searchHits.length" class="text-amrita-maroon font-extrabold tabular-nums">0</strong> of <strong x-text="totalResults" class="text-amrita-maroon font-extrabold tabular-nums">0</strong> matching exam papers</span>
             <div class="flex items-center gap-3 flex-wrap">
+                <!-- View Toggle -->
+                <div class="flex items-center border-2 border-gray-200 rounded-lg overflow-hidden">
+                    <button @click="toggleView('grid')" :class="viewMode === 'grid' ? 'bg-amrita-maroon text-white' : 'bg-white text-gray-500 hover:text-gray-800'" aria-label="Grid view" class="px-2.5 py-1.5 text-xs font-bold transition-colors">
+                        <i class="fa-solid fa-grip"></i>
+                    </button>
+                    <button @click="toggleView('list')" :class="viewMode === 'list' ? 'bg-amrita-maroon text-white' : 'bg-white text-gray-500 hover:text-gray-800'" aria-label="List view" class="px-2.5 py-1.5 text-xs font-bold transition-colors">
+                        <i class="fa-solid fa-list"></i>
+                    </button>
+                </div>
                 <!-- Sort By Dropdown -->
                 <div class="flex items-center gap-2">
                     <label for="sort-select" class="text-xs font-extrabold uppercase text-gray-500">Sort</label>
                     <select id="sort-select" x-model="sort" @change="changeSort()" aria-label="Sort results by" class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:border-amrita-maroon cursor-pointer transition-colors">
-                        <option value="newest">Newest (Year DESC)</option>
-                        <option value="year_asc">Oldest (Year ASC)</option>
-                        <option value="code_asc">Course Code A-Z</option>
+                        <option value="newest">Newest</option>
+                        <option value="year_asc">Oldest</option>
+                        <option value="code_asc">Code A-Z</option>
                         <option value="title_asc">Title A-Z</option>
                     </select>
                 </div>
@@ -353,44 +362,35 @@
             </template>
         </div>
 
-        <!-- Paper Cards Grid -->
-        <div x-show="!isResolving && searchHits.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Paper Cards Grid View -->
+        <div x-show="!isResolving && searchHits.length > 0 && viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             <template x-for="item in searchHits" :key="item.id">
-                <div class="bg-white rounded-xl border shadow-sm hover:shadow-md transition-all flex flex-col justify-between overflow-hidden relative"
+                <div class="bg-white rounded-xl border shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col justify-between overflow-hidden relative"
                      :class="selectedPaths.includes(item.relative_path) ? 'border-amrita-maroon shadow-md' : 'border-gray-200'">
-                    <!-- Selection Accent Bar (maroon left border when selected) -->
+                    <!-- Selection Accent Bar -->
                     <div class="absolute left-0 top-0 bottom-0 w-1 transition-colors" :class="selectedPaths.includes(item.relative_path) ? 'bg-amrita-maroon' : 'bg-transparent'"></div>
-                    <div class="p-5 space-y-3">
-                        <div class="flex items-start justify-between gap-2 flex-wrap">
+                    <div class="p-5 space-y-3 pl-6">
+                        <!-- Top Row: Course Code + Year/Exam Type Badges -->
+                        <div class="flex items-start justify-between gap-2">
                             <span class="bg-amrita-light text-amrita-maroon font-mono font-bold text-xs px-2.5 py-1 rounded border border-amrita-maroon/20" x-text="item.course_code || 'N/A'"></span>
-                            <div class="flex items-center space-x-1.5 shrink-0">
-                                <span class="bg-amber-50 text-amber-900 border border-amber-200/60 font-bold text-[11px] px-2 py-0.5 rounded truncate max-w-[150px]" x-text="item.exam_type"></span>
-                                <span class="bg-gray-100 text-gray-700 font-semibold text-xs px-2 py-0.5 rounded" x-text="item.year"></span>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <span class="bg-amber-50 text-amber-800 border border-amber-200/60 font-semibold text-[11px] px-2 py-0.5 rounded" x-text="item.exam_type"></span>
+                                <span class="bg-gray-100 text-gray-700 font-semibold text-xs px-2 py-0.5 rounded tabular-nums" x-text="item.year"></span>
                             </div>
                         </div>
-                        <h4 class="font-bold text-base text-gray-900 leading-snug line-clamp-2 hover:text-amrita-maroon transition-colors" x-text="item.course_title"></h4>
-                        
-                        <div class="text-xs text-gray-600 space-y-1 pt-2 border-t border-gray-100">
-                            <div class="flex items-center gap-2 truncate">
-                                <i class="fa-solid fa-building-columns text-gray-400 w-4"></i>
-                                <span class="truncate font-semibold" x-text="item.department"></span>
-                            </div>
-                            <div class="flex items-center gap-2 truncate">
-                                <i class="fa-solid fa-graduation-cap text-gray-400 w-4"></i>
-                                <span class="truncate font-semibold" x-text="`${item.program} • ${item.semester}`"></span>
-                            </div>
+                        <!-- Title -->
+                        <h4 class="font-bold text-sm text-gray-900 leading-snug line-clamp-2 hover:text-amrita-maroon transition-colors cursor-pointer" @click="openPdfModal(item)" x-text="item.course_title"></h4>
+                        <!-- Grouped Metadata Line (no repetitive icons) -->
+                        <div class="text-xs text-gray-600 pt-2 border-t border-gray-100">
+                            <p class="truncate font-medium" x-text="`${item.department} · ${item.program} · ${item.semester}`"></p>
                         </div>
                     </div>
-
-                    <!-- Card Actions -->
-                    <div class="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-2">
-                        <div class="flex items-center gap-2 min-w-0">
-                            <label class="flex items-center gap-1.5 cursor-pointer shrink-0 select-none" @click.prevent="toggleSelection(item.relative_path)">
+                    <!-- Card Actions: Ghost/Outline style, split button -->
+                    <div class="px-5 pb-4 pl-6 pt-1 flex items-center justify-between gap-2 border-t border-gray-100">
+                        <div class="flex items-center gap-2">
+                            <label class="flex items-center cursor-pointer shrink-0 select-none" @click.prevent="toggleSelection(item.relative_path)">
                                 <input type="checkbox" :value="item.relative_path" x-model="selectedPaths" class="w-4 h-4 rounded border-2 border-gray-300 text-amrita-maroon focus:ring-0 focus:ring-offset-0 cursor-pointer">
                             </label>
-                            <span class="text-[11px] font-mono text-gray-400 truncate" :title="item.relative_path" x-text="item.relative_path"></span>
-                        </div>
-                        <div class="flex items-center space-x-2 shrink-0">
                             <!-- Bookmark Star -->
                             <button @click="toggleBookmark(item.relative_path)" :aria-label="isBookmarked(item.relative_path) ? 'Remove bookmark' : 'Bookmark this paper'" class="p-1.5 rounded-lg transition-colors" :class="isBookmarked(item.relative_path) ? 'text-amber-500 hover:text-amber-600' : 'text-gray-300 hover:text-gray-500'" :title="isBookmarked(item.relative_path) ? 'Bookmarked' : 'Bookmark'">
                                 <i class="fa-solid fa-star" x-show="isBookmarked(item.relative_path)"></i>
@@ -401,33 +401,88 @@
                                 <i class="fa-solid fa-check" x-show="copySuccessPath === item.relative_path"></i>
                                 <i class="fa-solid fa-link" x-show="copySuccessPath !== item.relative_path"></i>
                             </button>
-                            <button @click="openPdfModal(item)" aria-label="View PDF document" class="bg-amrita-maroon hover:bg-amrita-dark text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-                                <i class="fa-solid fa-eye"></i> View
+                        </div>
+                        <!-- Split Button: View (outline) + Download (icon) -->
+                        <div class="flex items-center overflow-hidden rounded-lg border border-amrita-maroon/30 shrink-0">
+                            <button @click="openPdfModal(item)" aria-label="View PDF document" class="bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold px-3 py-1.5 transition-colors flex items-center gap-1.5">
+                                <i class="fa-solid fa-eye text-[11px]"></i> View
                             </button>
-                            <a :href="`/api/pdf?path=${encodeURIComponent(item.relative_path)}`" download :download="item.relative_path.split('/').pop()" aria-label="Download original PDF document" class="bg-white text-gray-700 border border-gray-300 text-xs font-bold p-1.5 rounded-lg hover:bg-gray-100 transition-colors" title="Download PDF">
+                            <div class="w-px h-7 bg-amrita-maroon/20"></div>
+                            <a :href="`/api/pdf?path=${encodeURIComponent(item.relative_path)}`" download :download="item.relative_path.split('/').pop()" aria-label="Download PDF" class="bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold p-1.5 transition-colors" title="Download">
                                 <i class="fa-solid fa-download"></i>
                             </a>
-                        </div>
-                    </div>
                         </div>
                     </div>
                 </div>
             </template>
         </div>
 
-        <!-- Pagination UI Controls -->
-        <div x-show="!isResolving && totalPages > 1" class="mt-8 flex items-center justify-between border-t border-gray-200 pt-6">
-            <button @click="changePage(page - 1)" :disabled="page <= 1" aria-label="Go to previous page" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shadow-sm">
-                <i class="fa-solid fa-chevron-left"></i> Previous Page
-            </button>
-            
-            <div class="text-xs font-bold text-gray-600">
-                Page <span class="text-amrita-maroon font-extrabold" x-text="page"></span> of <span class="font-extrabold" x-text="totalPages"></span>
-            </div>
+        <!-- Paper Cards List View -->
+        <div x-show="!isResolving && searchHits.length > 0 && viewMode === 'list'" class="space-y-2">
+            <template x-for="item in searchHits" :key="item.id">
+                <div class="bg-white rounded-xl border shadow-sm hover:shadow-md transition-all flex items-center gap-4 overflow-hidden relative p-3 pr-4"
+                     :class="selectedPaths.includes(item.relative_path) ? 'border-amrita-maroon' : 'border-gray-200'">
+                    <!-- Checkbox -->
+                    <label class="flex items-center cursor-pointer shrink-0 select-none" @click.prevent="toggleSelection(item.relative_path)">
+                        <input type="checkbox" :value="item.relative_path" x-model="selectedPaths" class="w-4 h-4 rounded border-2 border-gray-300 text-amrita-maroon focus:ring-0 focus:ring-offset-0 cursor-pointer">
+                    </label>
+                    <!-- Course Code -->
+                    <span class="bg-amrita-light text-amrita-maroon font-mono font-bold text-xs px-2.5 py-1 rounded border border-amrita-maroon/20 shrink-0" x-text="item.course_code || 'N/A'"></span>
+                    <!-- Title -->
+                    <h4 class="font-bold text-sm text-gray-900 truncate flex-1 cursor-pointer hover:text-amrita-maroon transition-colors" @click="openPdfModal(item)" x-text="item.course_title"></h4>
+                    <!-- Metadata -->
+                    <span class="text-xs text-gray-500 font-medium hidden lg:block truncate max-w-[250px]" x-text="`${item.department} · ${item.program}`"></span>
+                    <!-- Badges -->
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <span class="bg-amber-50 text-amber-800 border border-amber-200/60 font-semibold text-[11px] px-2 py-0.5 rounded" x-text="item.exam_type"></span>
+                        <span class="bg-gray-100 text-gray-700 font-semibold text-xs px-2 py-0.5 rounded tabular-nums" x-text="item.year"></span>
+                    </div>
+                    <!-- Actions -->
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button @click="toggleBookmark(item.relative_path)" :aria-label="isBookmarked(item.relative_path) ? 'Remove bookmark' : 'Bookmark this paper'" class="p-1.5 rounded-lg transition-colors" :class="isBookmarked(item.relative_path) ? 'text-amber-500 hover:text-amber-600' : 'text-gray-300 hover:text-gray-500'">
+                            <i class="fa-solid fa-star" x-show="isBookmarked(item.relative_path)"></i>
+                            <i class="fa-regular fa-star" x-show="!isBookmarked(item.relative_path)"></i>
+                        </button>
+                        <button @click="copyShareLink(item)" :aria-label="copySuccessPath === item.relative_path ? 'Link copied' : 'Copy share link'" class="p-1.5 rounded-lg text-gray-400 hover:text-amrita-maroon transition-colors">
+                            <i class="fa-solid fa-check" x-show="copySuccessPath === item.relative_path"></i>
+                            <i class="fa-solid fa-link" x-show="copySuccessPath !== item.relative_path"></i>
+                        </button>
+                        <button @click="openPdfModal(item)" aria-label="View PDF" class="border border-amrita-maroon/30 bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+                            <i class="fa-solid fa-eye text-[11px]"></i> View
+                        </button>
+                        <a :href="`/api/pdf?path=${encodeURIComponent(item.relative_path)}`" download :download="item.relative_path.split('/').pop()" aria-label="Download PDF" class="border border-amrita-maroon/30 bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold p-1.5 rounded-lg transition-colors" title="Download">
+                            <i class="fa-solid fa-download"></i>
+                        </a>
+                    </div>
+                </div>
+            </template>
+        </div>
 
-            <button @click="changePage(page + 1)" :disabled="page >= totalPages" aria-label="Go to next page" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shadow-sm">
-                Next Page <i class="fa-solid fa-chevron-right"></i>
-            </button>
+        <!-- Enhanced Pagination Controls -->
+        <div x-show="!isResolving && totalPages > 1" class="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-200 pt-6">
+            <div class="flex items-center gap-2">
+                <button @click="changePage(page - 1)" :disabled="page <= 1" aria-label="Go to previous page" class="px-3 py-2 bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg text-xs font-bold text-gray-700 hover:bg-amrita-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5">
+                    <i class="fa-solid fa-chevron-left text-[10px]"></i> Prev
+                </button>
+                <!-- Page Numbers -->
+                <div class="flex items-center gap-1">
+                    <template x-for="(p, idx) in pageNumbers" :key="idx">
+                        <span x-show="p === '...'" class="text-gray-400 font-bold text-xs px-1">...</span>
+                        <button x-show="p !== '...'" @click="changePage(p)" :aria-label="`Go to page ${p}`" :class="p === page ? 'bg-amrita-maroon text-white border-amrita-maroon' : 'bg-white text-gray-700 border-gray-200 hover:border-amrita-maroon hover:bg-amrita-light'" class="w-9 h-9 rounded-lg border-2 text-xs font-bold tabular-nums transition-colors" x-text="p"></button>
+                    </template>
+                </div>
+                <button @click="changePage(page + 1)" :disabled="page >= totalPages" aria-label="Go to next page" class="px-3 py-2 bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg text-xs font-bold text-gray-700 hover:bg-amrita-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5">
+                    Next <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                </button>
+            </div>
+            <!-- Jump to Page -->
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 font-medium">Page <strong class="text-amrita-maroon" x-text="page"></strong> of <strong x-text="totalPages"></strong></span>
+                <div class="flex items-center gap-1.5">
+                    <input type="number" x-model="jumpPage" @keydown.enter="jumpToPage()" :min="1" :max="totalPages" placeholder="Jump" aria-label="Jump to page number" class="w-16 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none focus:border-amrita-maroon tabular-nums">
+                    <button @click="jumpToPage()" class="px-3 py-1.5 bg-amrita-maroon hover:bg-amrita-dark text-white text-xs font-bold rounded-lg transition-colors">Go</button>
+                </div>
+            </div>
         </div>
 
         <!-- Empty Result Recovery Card -->
@@ -551,6 +606,8 @@
                 yearEnd: 'All',
                 copySuccess: false,
                 copySuccessPath: '',
+                viewMode: 'grid',
+                jumpPage: '',
                 facetData: { departments: [], programs: [], years: [], categories: [], total_papers: 0 },
                 totalPapers: 19600,
                 searchHits: [],
@@ -805,6 +862,36 @@
                     if (el) el.scrollIntoView({ behavior: 'smooth' });
                 },
 
+                jumpToPage() {
+                    const p = parseInt(this.jumpPage);
+                    if (p >= 1 && p <= this.totalPages) {
+                        this.changePage(p);
+                        this.jumpPage = '';
+                    }
+                },
+
+                get pageNumbers() {
+                    const total = this.totalPages;
+                    const current = this.page;
+                    const pages = [];
+                    if (total <= 7) {
+                        for (let i = 1; i <= total; i++) pages.push(i);
+                    } else {
+                        pages.push(1);
+                        if (current > 4) pages.push('...');
+                        const start = Math.max(2, current - 1);
+                        const end = Math.min(total - 1, current + 1);
+                        for (let i = start; i <= end; i++) pages.push(i);
+                        if (current < total - 3) pages.push('...');
+                        pages.push(total);
+                    }
+                    return pages;
+                },
+
+                toggleView(mode) {
+                    this.viewMode = mode;
+                },
+
                 resetAll() {
                     this.searchQuery = '';
                     this.suggestions = [];
@@ -814,6 +901,7 @@
                     this.pageSize = 24;
                     this.page = 1;
                     this.selectedPaths = [];
+                    this.viewMode = 'grid';
                     this.executeSearch();
                 },
 
