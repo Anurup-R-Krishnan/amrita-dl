@@ -99,16 +99,20 @@
 
         <div class="max-w-7xl mx-auto relative z-40 space-y-4">
             
-            <!-- Brand Guideline Style Typography Box Badges -->
-            <div>
-                <div class="inline-block bg-white text-amrita-maroon font-extrabold px-4 py-2 text-sm sm:text-base uppercase tracking-wider shadow-md">
-                    AMRITA EXAMINATION PAPER REPOSITORY
+            <!-- Brand Header with Maroon A Monogram Badge -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-white text-amrita-maroon font-black text-xl rounded-xl shadow-md border border-white/30 flex items-center justify-center tracking-tighter shrink-0 select-none">
+                    A
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg sm:text-xl uppercase tracking-wider text-white leading-tight">
+                        AMRITA VISHWA VIDYAPEETHAM
+                    </h1>
+                    <p class="text-white/80 text-xs sm:text-sm font-medium">
+                        Centralized Examination Paper Archive
+                    </p>
                 </div>
             </div>
-
-            <p class="text-white/80 text-xs sm:text-sm max-w-2xl font-medium">
-                Search 19,600 verified examination papers across all Amrita programs.
-            </p>
 
             <!-- Autocomplete Search Console QoS -->
             <div class="max-w-3xl relative">
@@ -574,18 +578,83 @@
         </div>
     </div>
 
-    <!-- Official Amrita Brand Footer (White & Maroon) -->
-    <footer class="bg-white text-gray-700 text-xs border-t-2 border-amrita-maroon mt-auto py-8 shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div class="flex items-center space-x-3">
-                <div class="w-8 h-8 bg-amrita-maroon text-white rounded-lg flex items-center justify-center font-extrabold text-sm shadow-md">A</div>
-                <div class="flex flex-col">
-                    <span class="font-extrabold text-xs text-amrita-maroon uppercase tracking-tight leading-none">AMRITA VISHWA VIDYAPEETHAM</span>
-                    <span class="font-bold text-[10px] tracking-wider text-gray-500 uppercase mt-0.5">Centralized Examination Paper Archive</span>
+    <!-- Official Amrita Brand Footer (Redesigned 3-Column Layout) -->
+    <footer class="bg-white text-gray-700 border-t-4 border-amrita-maroon mt-auto pt-10 pb-8 shadow-inner">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 pb-8 border-b border-gray-200">
+                
+                <!-- Column 1: Brand Monogram Identity -->
+                <div class="space-y-3">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-9 h-9 bg-amrita-maroon text-white font-black text-lg rounded-xl shadow-md flex items-center justify-center tracking-tighter select-none shrink-0">
+                            A
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="font-extrabold text-xs text-amrita-maroon uppercase tracking-wider leading-none">AMRITA VISHWA VIDYAPEETHAM</span>
+                            <span class="font-semibold text-[11px] text-gray-500 uppercase tracking-tight mt-1">Examination Paper Archive</span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-600 leading-relaxed max-w-sm">
+                        Official repository providing full-text search across 19,600+ past examination question papers spanning undergraduate, postgraduate, and doctoral degree programs.
+                    </p>
+                </div>
+
+                <!-- Column 2: Quick Archive Navigation -->
+                <div class="space-y-3">
+                    <h3 class="font-extrabold text-xs text-amrita-maroon uppercase tracking-wider">Archive Navigation</h3>
+                    <ul class="text-xs space-y-2 font-medium text-gray-600">
+                        <li>
+                            <button @click="resetAll()" class="hover:text-amrita-maroon transition-colors flex items-center gap-1.5">
+                                <i class="fa-solid fa-rotate-left text-[10px]"></i> Reset Search & Filters
+                            </button>
+                        </li>
+                        <li>
+                            <a href="#filters" @click="filters.department = 'Computer Science & Engineering'; executeSearch()" class="hover:text-amrita-maroon transition-colors">
+                                Computer Science & Engineering Papers
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#filters" @click="filters.department = 'Electronics & Communication Engineering'; executeSearch()" class="hover:text-amrita-maroon transition-colors">
+                                Electronics & Communication Papers
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#filters" @click="filters.department = 'Mechanical Engineering'; executeSearch()" class="hover:text-amrita-maroon transition-colors">
+                                Mechanical Engineering Papers
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Column 3: System Status & Metadata -->
+                <div class="space-y-3">
+                    <h3 class="font-extrabold text-xs text-amrita-maroon uppercase tracking-wider">System Metadata</h3>
+                    <div class="bg-amrita-light p-3.5 rounded-xl border border-amrita-maroon/20 space-y-1.5">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-semibold text-gray-700">System Status:</span>
+                            <span class="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">Operational</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-semibold text-gray-700">Total Indexing:</span>
+                            <span class="font-mono font-bold text-amrita-maroon tabular-nums text-[11px]" x-text="`${totalPapers.toLocaleString()} Papers`">19,600 Papers</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-semibold text-gray-700">Search Engine:</span>
+                            <span class="font-mono font-semibold text-gray-600 text-[11px]">SQLite FTS5 BM25</span>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="font-mono text-amrita-maroon font-bold text-center sm:text-right text-[11px]" x-text="`© ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham. All rights reserved.`">
-                © 2026 Amrita Vishwa Vidyapeetham. All rights reserved.
+
+            <!-- Bottom Copyright Line -->
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-500 font-medium pt-2">
+                <div x-text="`© ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham. All rights reserved.`">
+                    © 2026 Amrita Vishwa Vidyapeetham. All rights reserved.
+                </div>
+                <div class="text-[11px] font-mono text-gray-400">
+                    Centralized Academic Repository
+                </div>
             </div>
         </div>
     </footer>
