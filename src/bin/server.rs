@@ -33,6 +33,7 @@ use tracing_subscriber::FmtSubscriber;
 struct AppState {
     db_path: PathBuf,
     indexed_root: PathBuf,
+    raw_root: PathBuf,
 }
 
 #[derive(Deserialize)]
@@ -497,12 +498,16 @@ async fn handle_pdf(
         format!("/{rel_path}")
     };
 
+    let rel_clean = rel_path.trim_start_matches('/');
+
     let full_path = if std::path::Path::new(&path_str).exists() {
         PathBuf::from(&path_str)
     } else if std::path::Path::new(rel_path).exists() {
         PathBuf::from(rel_path)
+    } else if state.raw_root.join(rel_clean).exists() {
+        state.raw_root.join(rel_clean)
     } else {
-        state.indexed_root.join(rel_path.trim_start_matches('/'))
+        state.indexed_root.join(rel_clean)
     };
 
     let canonical = match full_path.canonicalize() {
@@ -510,9 +515,10 @@ async fn handle_pdf(
         Err(_) => return (StatusCode::NOT_FOUND, "PDF File Not Found").into_response(),
     };
 
-    let root_canonical = state.indexed_root.canonicalize().unwrap_or_else(|_| state.indexed_root.clone());
-    if !canonical.starts_with(&root_canonical) {
-        return (StatusCode::FORBIDDEN, "Access Denied: Path outside indexed root").into_response();
+    let raw_canonical = state.raw_root.canonicalize().unwrap_or_else(|_| state.raw_root.clone());
+    let indexed_canonical = state.indexed_root.canonicalize().unwrap_or_else(|_| state.indexed_root.clone());
+    if !canonical.starts_with(&raw_canonical) && !canonical.starts_with(&indexed_canonical) {
+        return (StatusCode::FORBIDDEN, "Access Denied: Path outside allowed roots").into_response();
     }
 
     if canonical.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) != Some("pdf".to_string()) {
@@ -541,8 +547,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let indexed_root = PathBuf::from("/run/media/anuruprkris/DATA/amrita-exam-papers-indexed");
-    let db_path = indexed_root.join("index.db");
+    let raw_root = PathBuf::from(std::env::var("RAW_ROOT").unwrap_or_else(|_| "/run/media/anuruprkris/DATA/amrita-exam-papers".to_string()));
+    let indexed_root = PathBuf::from(std::env::var("INDEXED_ROOT").unwrap_or_else(|_| "/run/media/anuruprkris/DATA/amrita-exam-papers-indexed".to_string()));
+    let db_path = std::env::var("INDEX_DB")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| indexed_root.join("index.db"));
 
     if !db_path.exists() {
         eprintln!("Error: index.db not found at {}", db_path.display());
@@ -552,6 +561,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shared_state = Arc::new(AppState {
         db_path,
         indexed_root,
+        raw_root,
     });
 
     let app = Router::new()

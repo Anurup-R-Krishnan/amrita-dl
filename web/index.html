@@ -16,6 +16,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
     <!-- Tailwind CSS CDN -->
+    <script>
+        (function() {
+            const warn = console.warn;
+            console.warn = function(...args) {
+                if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com should not be used in production')) return;
+                warn.apply(console, args);
+            };
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -102,13 +111,9 @@
         <div class="max-w-6xl mx-auto relative z-10 space-y-8">
             
             <!-- Brand Guideline Style Typography Box Badges -->
-            <div class="space-y-3">
+            <div>
                 <div class="inline-block bg-white text-amrita-maroon font-extrabold px-4 py-2 text-sm sm:text-base uppercase tracking-wider shadow-md">
                     AMRITA EXAMINATION PAPER REPOSITORY
-                </div>
-                <br x-cloak>
-                <div class="inline-block bg-white text-amrita-maroon font-extrabold px-4 py-2 text-sm sm:text-base uppercase tracking-wider shadow-md">
-                    OFFICIAL DIGITAL ARCHIVE & FACULTY CATALOG
                 </div>
             </div>
 
@@ -308,7 +313,6 @@
         <!-- Result Overview Stats Header -->
         <div id="archive" class="flex items-center justify-between text-xs text-gray-600 pt-4">
             <span class="font-semibold">Showing <strong x-text="searchHits.length" class="text-amrita-maroon font-extrabold">0</strong> of <strong x-text="totalResults" class="text-amrita-maroon font-extrabold">0</strong> matching exam papers</span>
-            <span x-show="searchTime !== null" class="font-mono text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200 font-bold" x-text="`Query executed in ${searchTime} ms`"></span>
         </div>
 
         <!-- Loading State Skeleton Cards -->
@@ -427,15 +431,49 @@
         </div>
     </div>
 
-    <!-- Official Brand Footer -->
-    <footer class="bg-gray-900 text-gray-400 text-xs py-8 border-t border-gray-800 mt-12">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div class="flex items-center space-x-3">
-                <div class="w-7 h-7 bg-amrita-maroon text-white rounded flex items-center justify-center font-bold">A</div>
-                <span class="font-semibold text-gray-300">Amrita Vishwa Vidyapeetham Examination Paper Archive</span>
+    <!-- Official Amrita Brand Footer -->
+    <footer class="bg-gray-950 text-gray-400 text-xs border-t border-gray-800/80 mt-20 pt-12 pb-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-8 border-b border-gray-800/60 pb-10">
+                <!-- Column 1: Brand & Institution Info -->
+                <div class="md:col-span-5 space-y-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-amrita-maroon text-white rounded-lg flex items-center justify-center font-black text-sm shadow-md border border-amrita-gold/30">A</div>
+                        <span class="font-extrabold text-sm text-white tracking-tight">Amrita Vishwa Vidyapeetham</span>
+                    </div>
+                    <p class="text-xs text-gray-400 leading-relaxed max-w-sm font-medium">
+                        Centralized Examination Question Paper Repository & Academic Resource Center.
+                    </p>
+                </div>
+
+                <!-- Column 2: Quick Links -->
+                <div class="md:col-span-3 space-y-2.5">
+                    <h4 class="font-extrabold text-xs uppercase tracking-wider text-gray-200">Archive Navigation</h4>
+                    <ul class="space-y-2 text-xs font-semibold">
+                        <li><a href="#filters" class="hover:text-amrita-gold transition-colors">Department Taxonomy</a></li>
+                        <li><a href="#filters" class="hover:text-amrita-gold transition-colors">Degree Programs</a></li>
+                        <li><a href="#archive" class="hover:text-amrita-gold transition-colors">Recent Papers</a></li>
+                    </ul>
+                </div>
+
+                <!-- Column 3: Institutional Information -->
+                <div class="md:col-span-4 space-y-2.5">
+                    <h4 class="font-extrabold text-xs uppercase tracking-wider text-gray-200">Institutional Notice</h4>
+                    <p class="text-[11px] text-gray-500 leading-relaxed font-medium">
+                        Maintained for academic review and student preparation across all campuses. All paper copyrights belong to Amrita Vishwa Vidyapeetham.
+                    </p>
+                </div>
             </div>
-            <div class="font-mono text-gray-500 text-center sm:text-right" x-text="`© ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham`">
-                © 2026 Amrita Vishwa Vidyapeetham
+
+            <!-- Footer Bottom Bar -->
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                <div class="flex items-center space-x-2 text-gray-500 text-[11px]">
+                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>System Active & Verified</span>
+                </div>
+                <div class="font-mono text-gray-500 text-center sm:text-right text-[11px]" x-text="`© ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham. All rights reserved.`">
+                    © 2026 Amrita Vishwa Vidyapeetham. All rights reserved.
+                </div>
             </div>
         </div>
     </footer>
