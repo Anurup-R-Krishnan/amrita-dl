@@ -865,7 +865,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let manager = SqliteConnectionManager::file(&db_path)
-        .with_flags(OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX);
+        .with_flags(OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX)
+        .with_init(|c| {
+            c.execute_batch("PRAGMA query_only = ON; PRAGMA cache_size = -64000; PRAGMA temp_store = MEMORY;")?;
+            Ok(())
+        });
     let db_pool = Pool::builder()
         .max_size(8)
         .build(manager)
@@ -915,7 +919,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("🚀 Amrita Exam Papers Search Server listening on http://0.0.0.0:{port}");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+            tokio::signal::ctrl_c().await.ok();
+            info!("Received shutdown signal, terminating server gracefully");
+        })
+        .await?;
 
     Ok(())
 }

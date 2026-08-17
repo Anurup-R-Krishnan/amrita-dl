@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - INDEX_DB=/app/data/index.db
+      - INDEXED_ROOT=/app/data/amrita-exam-papers-indexed
+      - RAW_ROOT=/app/data/amrita-exam-papers
+    volumes:
+      - ./index.db:/app/data/index.db:ro
+      - ./amrita-exam-papers-indexed:/app/data/amrita-exam-papers-indexed:ro
+      - ./amrita-exam-papers:/app/data/amrita-exam-papers:ro
+    restart: unless-stopped
