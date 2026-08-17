@@ -871,22 +871,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let raw_root = PathBuf::from(std::env::var("RAW_ROOT").unwrap_or_else(|_| {
-        let sys_path = PathBuf::from("/run/media/anuruprkris/DATA/amrita-exam-papers");
-        if sys_path.exists() {
-            sys_path.to_string_lossy().to_string()
-        } else {
-            "./amrita-exam-papers".to_string()
-        }
-    }));
-    let indexed_root = PathBuf::from(std::env::var("INDEXED_ROOT").unwrap_or_else(|_| {
-        let sys_path = PathBuf::from("/run/media/anuruprkris/DATA/amrita-exam-papers-indexed");
-        if sys_path.exists() {
-            sys_path.to_string_lossy().to_string()
-        } else {
-            "./amrita-exam-papers-indexed".to_string()
-        }
-    }));
+    let raw_root = PathBuf::from(std::env::var("RAW_ROOT").unwrap_or_else(|_| "./amrita-exam-papers".to_string()));
+    let indexed_root = PathBuf::from(std::env::var("INDEXED_ROOT").unwrap_or_else(|_| "./amrita-exam-papers-indexed".to_string()));
     let db_path = std::env::var("INDEX_DB")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
