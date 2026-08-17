@@ -47,7 +47,9 @@ struct SearchParams {
     program: Option<String>,
     semester: Option<String>,
     year: Option<String>,
+    year_end: Option<String>,
     category: Option<String>,
+    sort: Option<String>,
     limit: Option<usize>,
     offset: Option<usize>,
 }
@@ -188,6 +190,22 @@ fn sanitize_title(title: &str, code: &str) -> String {
     if t.eq_ignore_ascii_case(code) || t.is_empty() {
         t = format!("{code} Examination Paper");
     }
+
+    // Title Case normalization: capitalize first letter of each word
+    let small_words = ["and", "or", "of", "the", "in", "for", "a", "an", "to", "on", "at", "by", "with", "from"];
+    let words: Vec<String> = t.split_whitespace().enumerate().map(|(i, w)| {
+        let lower = w.to_lowercase();
+        if i > 0 && small_words.contains(&lower.as_str()) {
+            lower
+        } else {
+            let mut chars = lower.chars();
+            match chars.next() {
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                None => String::new(),
+            }
+        }
+    }).collect();
+    t = words.join(" ");
     t
 }
 
@@ -301,8 +319,19 @@ async fn handle_search(
 
     if let Some(ref yr) = params.year {
         if !yr.is_empty() && yr != "All" {
-            where_clause.push_str(" AND p.year = ? ");
-            bindings.push(yr.clone());
+            if let Some(ref yr_end) = params.year_end {
+                if !yr_end.is_empty() && yr_end != "All" {
+                    where_clause.push_str(" AND CAST(p.year AS INTEGER) BETWEEN ? AND ? ");
+                    bindings.push(yr.clone());
+                    bindings.push(yr_end.clone());
+                } else {
+                    where_clause.push_str(" AND p.year = ? ");
+                    bindings.push(yr.clone());
+                }
+            } else {
+                where_clause.push_str(" AND p.year = ? ");
+                bindings.push(yr.clone());
+            }
         }
     }
 
@@ -325,7 +354,12 @@ async fn handle_search(
     if has_text_q {
         sql.push_str(" ORDER BY bm25(papers_fts, 10.0, 5.0, 2.0) ASC LIMIT ? OFFSET ?");
     } else {
-        sql.push_str(" ORDER BY p.year DESC, p.course_code ASC LIMIT ? OFFSET ?");
+        match params.sort.as_deref() {
+            Some("code_asc") => sql.push_str(" ORDER BY p.course_code ASC LIMIT ? OFFSET ?"),
+            Some("year_asc") => sql.push_str(" ORDER BY p.year ASC, p.course_code ASC LIMIT ? OFFSET ?"),
+            Some("title_asc") => sql.push_str(" ORDER BY p.course_title ASC LIMIT ? OFFSET ?"),
+            _ => sql.push_str(" ORDER BY p.year DESC, p.course_code ASC LIMIT ? OFFSET ?"),
+        }
     }
 
     let mut stmt = conn

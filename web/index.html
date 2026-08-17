@@ -65,6 +65,16 @@
         ::-webkit-scrollbar-track { background: #F1F1F1; }
         ::-webkit-scrollbar-thumb { background: #A4123F; border-radius: 3px; }
         
+        /* Focus-visible rings for keyboard navigation (WCAG AA) */
+        *:focus-visible {
+            outline: 2px solid #A4123F;
+            outline-offset: 2px;
+        }
+        /* Remove focus outline for mouse clicks */
+        *:focus:not(:focus-visible) {
+            outline: none;
+        }
+        
         .grid-pattern {
             background-size: 30px 30px;
             background-image: 
@@ -75,8 +85,8 @@
         .grid-pattern-light {
             background-size: 30px 30px;
             background-image: 
-                linear-gradient(to right, rgba(164, 18, 63, 0.04) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(164, 18, 63, 0.04) 1px, transparent 1px);
+                linear-gradient(to right, rgba(164, 18, 63, 0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(164, 18, 63, 0.02) 1px, transparent 1px);
         }
     </style>
 </head>
@@ -298,9 +308,31 @@
             </div>
         </div>
 
-        <!-- Result Overview Stats Header -->
-        <div id="archive" class="flex items-center justify-between text-xs text-gray-600 pt-4">
-            <span class="font-semibold">Showing <strong x-text="searchHits.length" class="text-amrita-maroon font-extrabold">0</strong> of <strong x-text="totalResults" class="text-amrita-maroon font-extrabold">0</strong> matching exam papers</span>
+        <!-- Result Overview Stats Header with Sort & Per-Page Controls -->
+        <div id="archive" class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4">
+            <span class="font-semibold text-xs text-gray-600">Showing <strong x-text="searchHits.length" class="text-amrita-maroon font-extrabold tabular-nums">0</strong> of <strong x-text="totalResults" class="text-amrita-maroon font-extrabold tabular-nums">0</strong> matching exam papers</span>
+            <div class="flex items-center gap-3 flex-wrap">
+                <!-- Sort By Dropdown -->
+                <div class="flex items-center gap-2">
+                    <label for="sort-select" class="text-xs font-extrabold uppercase text-gray-500">Sort</label>
+                    <select id="sort-select" x-model="sort" @change="changeSort()" aria-label="Sort results by" class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:border-amrita-maroon cursor-pointer transition-colors">
+                        <option value="newest">Newest (Year DESC)</option>
+                        <option value="year_asc">Oldest (Year ASC)</option>
+                        <option value="code_asc">Course Code A-Z</option>
+                        <option value="title_asc">Title A-Z</option>
+                    </select>
+                </div>
+                <!-- Items Per Page Selector -->
+                <div class="flex items-center gap-2">
+                    <label for="perpage-select" class="text-xs font-extrabold uppercase text-gray-500">Per Page</label>
+                    <select id="perpage-select" x-model.number="pageSize" @change="changePageSize()" aria-label="Items per page" class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:border-amrita-maroon cursor-pointer transition-colors tabular-nums">
+                        <option value="12">12</option>
+                        <option value="24">24</option>
+                        <option value="48">48</option>
+                        <option value="96">96</option>
+                    </select>
+                </div>
+            </div>
         </div>
 
         <!-- Loading State Skeleton Cards -->
@@ -359,6 +391,16 @@
                             <span class="text-[11px] font-mono text-gray-400 truncate" :title="item.relative_path" x-text="item.relative_path"></span>
                         </div>
                         <div class="flex items-center space-x-2 shrink-0">
+                            <!-- Bookmark Star -->
+                            <button @click="toggleBookmark(item.relative_path)" :aria-label="isBookmarked(item.relative_path) ? 'Remove bookmark' : 'Bookmark this paper'" class="p-1.5 rounded-lg transition-colors" :class="isBookmarked(item.relative_path) ? 'text-amber-500 hover:text-amber-600' : 'text-gray-300 hover:text-gray-500'" :title="isBookmarked(item.relative_path) ? 'Bookmarked' : 'Bookmark'">
+                                <i class="fa-solid fa-star" x-show="isBookmarked(item.relative_path)"></i>
+                                <i class="fa-regular fa-star" x-show="!isBookmarked(item.relative_path)"></i>
+                            </button>
+                            <!-- Copy Share Link -->
+                            <button @click="copyShareLink(item)" :aria-label="copySuccessPath === item.relative_path ? 'Link copied' : 'Copy share link'" class="p-1.5 rounded-lg text-gray-400 hover:text-amrita-maroon transition-colors" :title="copySuccessPath === item.relative_path ? 'Link copied!' : 'Copy share link'">
+                                <i class="fa-solid fa-check" x-show="copySuccessPath === item.relative_path"></i>
+                                <i class="fa-solid fa-link" x-show="copySuccessPath !== item.relative_path"></i>
+                            </button>
                             <button @click="openPdfModal(item)" aria-label="View PDF document" class="bg-amrita-maroon hover:bg-amrita-dark text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
                                 <i class="fa-solid fa-eye"></i> View
                             </button>
@@ -505,6 +547,10 @@
                     category: 'All',
                     year: 'All'
                 },
+                sort: 'newest',
+                yearEnd: 'All',
+                copySuccess: false,
+                copySuccessPath: '',
                 facetData: { departments: [], programs: [], years: [], categories: [], total_papers: 0 },
                 totalPapers: 19600,
                 searchHits: [],
@@ -519,12 +565,55 @@
                 activePdf: null,
                 selectedPaths: [],
                 isBatching: false,
+                bookmarks: [],
 
                 async init() {
                     this.$watch('filters', () => { this.page = 1; });
+                    this.loadBookmarks();
                     this.loadFromUrl();
                     await this.fetchFacets();
                     await this.executeSearch();
+                },
+
+                loadBookmarks() {
+                    try {
+                        const stored = localStorage.getItem('amrita_bookmarks');
+                        if (stored) this.bookmarks = JSON.parse(stored);
+                    } catch (e) { this.bookmarks = []; }
+                },
+
+                saveBookmarks() {
+                    try {
+                        localStorage.setItem('amrita_bookmarks', JSON.stringify(this.bookmarks));
+                    } catch (e) {}
+                },
+
+                toggleBookmark(path) {
+                    const idx = this.bookmarks.indexOf(path);
+                    if (idx >= 0) {
+                        this.bookmarks.splice(idx, 1);
+                    } else {
+                        this.bookmarks.push(path);
+                    }
+                    this.saveBookmarks();
+                },
+
+                isBookmarked(path) {
+                    return this.bookmarks.includes(path);
+                },
+
+                async copyShareLink(item) {
+                    const params = new URLSearchParams();
+                    if (item.course_code) params.set('q', item.course_code);
+                    const url = `${window.location.origin}/?${params.toString()}`;
+                    try {
+                        await navigator.clipboard.writeText(url);
+                        this.copySuccess = true;
+                        this.copySuccessPath = item.relative_path;
+                        setTimeout(() => { this.copySuccess = false; this.copySuccessPath = ''; }, 2000);
+                    } catch (e) {
+                        console.error('Copy link failed:', e);
+                    }
                 },
 
                 loadFromUrl() {
@@ -534,7 +623,10 @@
                     if (url.has('program') && url.get('program') !== 'All') this.filters.program = url.get('program');
                     if (url.has('category') && url.get('category') !== 'All') this.filters.category = url.get('category');
                     if (url.has('year') && url.get('year') !== 'All') this.filters.year = url.get('year');
+                    if (url.has('year_end') && url.get('year_end') !== 'All') this.yearEnd = url.get('year_end');
+                    if (url.has('sort')) this.sort = url.get('sort');
                     if (url.has('page')) this.page = parseInt(url.get('page')) || 1;
+                    if (url.has('limit')) this.pageSize = parseInt(url.get('limit')) || 24;
                 },
 
                 syncUrl() {
@@ -544,7 +636,10 @@
                     if (this.filters.program !== 'All') params.set('program', this.filters.program);
                     if (this.filters.category !== 'All') params.set('category', this.filters.category);
                     if (this.filters.year !== 'All') params.set('year', this.filters.year);
+                    if (this.yearEnd !== 'All') params.set('year_end', this.yearEnd);
+                    if (this.sort !== 'newest') params.set('sort', this.sort);
                     if (this.page > 1) params.set('page', this.page);
+                    if (this.pageSize !== 24) params.set('limit', this.pageSize);
                     const qs = params.toString();
                     const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
                     window.history.replaceState({}, '', newUrl);
@@ -661,7 +756,11 @@
                     if (this.filters.department !== 'All') params.append('department', this.filters.department);
                     if (this.filters.program !== 'All') params.append('program', this.filters.program);
                     if (this.filters.category !== 'All') params.append('category', this.filters.category);
-                    if (this.filters.year !== 'All') params.append('year', this.filters.year);
+                    if (this.filters.year !== 'All') {
+                        params.append('year', this.filters.year);
+                        if (this.yearEnd !== 'All') params.append('year_end', this.yearEnd);
+                    }
+                    if (this.sort && this.sort !== 'newest') params.append('sort', this.sort);
 
                     params.append('limit', this.pageSize);
                     params.append('offset', (this.page - 1) * this.pageSize);
@@ -694,10 +793,25 @@
                     }
                 },
 
+                changeSort() {
+                    this.page = 1;
+                    this.executeSearch();
+                },
+
+                changePageSize() {
+                    this.page = 1;
+                    this.executeSearch();
+                    const el = document.getElementById('archive');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                },
+
                 resetAll() {
                     this.searchQuery = '';
                     this.suggestions = [];
                     this.filters = { department: 'All', program: 'All', category: 'All', year: 'All' };
+                    this.sort = 'newest';
+                    this.yearEnd = 'All';
+                    this.pageSize = 24;
                     this.page = 1;
                     this.selectedPaths = [];
                     this.executeSearch();
