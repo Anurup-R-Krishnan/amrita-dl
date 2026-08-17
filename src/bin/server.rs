@@ -891,7 +891,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let manager = SqliteConnectionManager::file(&db_path)
         .with_flags(OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX)
         .with_init(|c| {
-            c.execute_batch("PRAGMA query_only = ON; PRAGMA cache_size = -64000; PRAGMA temp_store = MEMORY;")?;
+            c.execute_batch("PRAGMA query_only = ON; PRAGMA cache_size = -64000; PRAGMA temp_store = MEMORY; PRAGMA mmap_size = 268435456;")?;
             Ok(())
         });
     let db_pool = Pool::builder()
