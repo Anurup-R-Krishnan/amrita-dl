@@ -57,6 +57,12 @@ struct PdfMeta {
     confidence: String,
 }
 
+fn get_current_year() -> i32 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+    (1970 + (secs / 31556926)) as i32
+}
+
 fn sanitize_text(s: &str) -> String {
     s.replace('\t', " ")
         .replace('\n', " ")
@@ -197,14 +203,17 @@ fn extract_pdf_metadata(pdf_path: &Path) -> PdfMeta {
 
     let lines: Vec<&str> = text.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
 
-    for line in &lines {
+    // Limit header metadata parsing (degree, semester, exam_type, year) to top 15 lines of Page 1
+    let header_lines = lines.iter().take(15);
+
+    for line in header_lines {
         let l_lower = line.to_lowercase();
 
         if l_lower.contains("b.tech") || l_lower.contains("bachelor of technology") { meta.program = "BTech".to_string(); }
         else if l_lower.contains("m.tech") || l_lower.contains("master of technology") { meta.program = "MTech".to_string(); }
         else if l_lower.contains("mca") || l_lower.contains("master of computer applications") { meta.program = "MCA".to_string(); }
         else if l_lower.contains("ph.d") || l_lower.contains("phd") { meta.program = "PhD".to_string(); }
-        else if l_lower.contains("int. m.sc") || l_lower.contains("integrated msc") || l_lower.contains("integrated m.sc") || l_lower.contains("integrated ma") { meta.program = "IntMSc".to_string(); }
+        else if l_lower.contains("int. m.sc") || l_lower.contains("integrated msc") || l_lower.contains("integrated m.sc") || l_lower.contains("integrated ma") { meta.program = "Integrated M.Sc.".to_string(); }
         else if l_lower.contains("msw") || l_lower.contains("master of social work") { meta.program = "MSW".to_string(); }
 
         if l_lower.contains("first semester") || l_lower.contains("1st semester") || l_lower.contains("i sem ") || l_lower.contains("i semester") { meta.semester = "Sem01".to_string(); }
@@ -226,8 +235,13 @@ fn extract_pdf_metadata(pdf_path: &Path) -> PdfMeta {
 
         for token in line.split_whitespace() {
             let clean = token.trim_matches(|c: char| !c.is_ascii_digit());
-            if clean.len() == 4 && (clean.starts_with("201") || clean.starts_with("202")) {
-                meta.year = clean.to_string();
+            if clean.len() == 4 {
+                if let Ok(y) = clean.parse::<i32>() {
+                    let max_year = get_current_year() + 1;
+                    if y >= 2000 && y <= max_year {
+                        meta.year = clean.to_string();
+                    }
+                }
             }
         }
     }
@@ -277,12 +291,14 @@ fn meta_from_path(pdf_path: &Path, meta: &mut PdfMeta) -> PdfMeta {
         else if path_str.contains("M.Tech") { meta.program = "MTech".to_string(); }
         else if path_str.contains("MCA") { meta.program = "MCA".to_string(); }
         else if path_str.contains("PhD") || path_str.contains("Ph.D") { meta.program = "PhD".to_string(); }
-        else if path_str.contains("Integrated MSc") || path_str.contains("Int. M.Sc") || path_str.contains("Integrated") { meta.program = "IntMSc".to_string(); }
+        else if path_str.contains("Integrated MSc") || path_str.contains("Int. M.Sc") || path_str.contains("Integrated") { meta.program = "Integrated M.Sc.".to_string(); }
+        else if path_str.contains("PG Diploma") { meta.program = "PG Diploma".to_string(); }
+        else if path_str.contains("PG/") || path_str.contains("PG\\") { meta.program = "M.Sc.".to_string(); }
+        else if path_str.contains("BA Communi") || path_str.contains("BA Communication") || (path_str.contains("Communication") && !path_str.contains("Electronics")) { meta.program = "B.A. Communication".to_string(); }
         else if path_str.contains("Social Work") || path_str.contains("MSW") { meta.program = "MSW".to_string(); }
         else if path_str.contains("Arts") || path_str.contains("Humanities") { meta.program = "Humanities".to_string(); }
-        else if path_str.contains("Science") { meta.program = "Sciences".to_string(); }
-        else if path_str.contains("Communication") { meta.program = "Communication".to_string(); }
-        else { meta.program = "General".to_string(); }
+        else if path_str.contains("Science") { meta.program = "M.Sc.".to_string(); }
+        else { meta.program = "B.Tech".to_string(); }
     }
 
     if meta.semester.is_empty() {
@@ -295,15 +311,18 @@ fn meta_from_path(pdf_path: &Path, meta: &mut PdfMeta) -> PdfMeta {
         if meta.semester.is_empty() { meta.semester = "SemGeneral".to_string(); }
     }
 
-    if meta.year.is_empty() {
-        let re_yr = regex::Regex::new(r"/(200[5-9]|201[0-9]|202[0-5])\b|\b(200[5-9]|201[0-9]|202[0-5])\b").unwrap();
-        if let Some(mat) = re_yr.captures(&path_str) {
-            if let Some(m) = mat.get(1).or_else(|| mat.get(2)) {
-                meta.year = m.as_str().to_string();
+    let max_year = get_current_year() + 1;
+    let re_yr = regex::Regex::new(r"/(19[89]\d|20[0-9]{2})\b|\b(19[89]\d|20[0-9]{2})\b").unwrap();
+    if let Some(mat) = re_yr.captures(&path_str) {
+        if let Some(m) = mat.get(1).or_else(|| mat.get(2)) {
+            if let Ok(y) = m.as_str().parse::<i32>() {
+                if y >= 1990 && y <= max_year {
+                    meta.year = m.as_str().to_string();
+                }
             }
         }
-        if meta.year.is_empty() { meta.year = "2024".to_string(); }
     }
+    if meta.year.is_empty() { meta.year = get_current_year().to_string(); }
 
     if meta.exam_type.is_empty() {
         let l_path = path_str.to_lowercase();
@@ -324,6 +343,13 @@ fn meta_from_path(pdf_path: &Path, meta: &mut PdfMeta) -> PdfMeta {
     meta.department = classify_department(&meta.course_code, &meta.course_title, &meta.original_path).to_string();
     meta.course_category = classify_course_category(&meta.course_code, &meta.course_title).to_string();
     meta.course_level = classify_course_level(&meta.course_code).to_string();
+
+    if let Ok(y) = meta.year.parse::<i32>() {
+        let max_year = get_current_year() + 1;
+        if y < 1990 || y > max_year {
+            meta.year = get_current_year().to_string();
+        }
+    }
 
     meta.clone()
 }

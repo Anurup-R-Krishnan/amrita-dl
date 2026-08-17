@@ -73,14 +73,19 @@ struct SuggestRecord {
     program: String,
 }
 
+fn get_current_year() -> i32 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+    (1970 + (secs / 31556926)) as i32
+}
+
 fn sanitize_year(year: &str) -> String {
     let y: i32 = year.parse().unwrap_or(0);
-    // Dynamically calculate valid academic years (from 2000 up to current year + 1)
-    let current_year = 2026;
-    if y >= 2000 && y <= current_year + 1 {
+    let max_year = get_current_year() + 1;
+    if y >= 1990 && y <= max_year {
         y.to_string()
     } else {
-        "2024".to_string()
+        get_current_year().to_string()
     }
 }
 
@@ -360,8 +365,13 @@ async fn handle_facets(
     let mut progs: Vec<(String, usize)> = progs_map.into_iter().collect();
     progs.sort_by(|a, b| b.1.cmp(&a.1));
 
-    // Years restricted to valid academic bounds (2000 to 2027)
-    let yrs = fetch_facet("SELECT year, count(*) FROM papers WHERE CAST(year AS INTEGER) BETWEEN 2000 AND 2027 GROUP BY year ORDER BY year DESC");
+    // Years restricted dynamically using system clock (1990 to current_year + 1)
+    let max_year = get_current_year() + 1;
+    let year_sql = format!(
+        "SELECT year, count(*) FROM papers WHERE CAST(year AS INTEGER) BETWEEN 1990 AND {} GROUP BY year ORDER BY year DESC",
+        max_year
+    );
+    let yrs = fetch_facet(&year_sql);
     let cats = fetch_facet("SELECT course_category, count(*) FROM papers GROUP BY course_category ORDER BY count(*) DESC");
 
     Ok(Json(FacetResponse {
