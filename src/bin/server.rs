@@ -17,7 +17,7 @@ use axum::{
     routing::get,
     Router,
 };
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{params, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use tokio::fs as tokio_fs;
 use tower_http::{cors::CorsLayer, services::{ServeDir, ServeFile}};
@@ -63,6 +63,14 @@ struct FacetResponse {
     years: Vec<(String, usize)>,
     categories: Vec<(String, usize)>,
     total_papers: usize,
+}
+
+#[derive(Serialize)]
+struct SuggestRecord {
+    course_code: String,
+    course_title: String,
+    department: String,
+    program: String,
 }
 
 fn expand_synonyms(query: &str) -> String {
@@ -120,8 +128,8 @@ async fn handle_search(
         sql.push_str("WHERE papers_fts MATCH ? ");
         bindings.push(fts_query);
     } else {
-        sql.push_str("SELECT id, course_code, course_title, department, program, semester, year, exam_type, course_category, course_level, original_path ");
-        sql.push_str("FROM papers WHERE 1=1 ");
+        sql.push_str("SELECT p.id, p.course_code, p.course_title, p.department, p.program, p.semester, p.year, p.exam_type, p.course_category, p.course_level, p.original_path ");
+        sql.push_str("FROM papers p WHERE 1=1 ");
     }
 
     if let Some(ref dept) = params.department {
@@ -253,6 +261,45 @@ async fn handle_facets(
     }))
 }
 
+async fn handle_suggest(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<Vec<SuggestRecord>>, (StatusCode, String)> {
+    let q = match params.get("q") {
+        Some(v) if !v.trim().is_empty() => v.trim(),
+        _ => return Ok(Json(Vec::new())),
+    };
+
+    let conn = Connection::open_with_flags(
+        &state.db_path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let pattern = format!("%{q}%");
+    let mut stmt = conn
+        .prepare("SELECT DISTINCT course_code, course_title, department, program FROM papers WHERE course_code LIKE ? OR course_title LIKE ? LIMIT 8")
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let rows = stmt
+        .query_map(params![pattern, pattern], |row| {
+            Ok(SuggestRecord {
+                course_code: row.get(0)?,
+                course_title: row.get(1)?,
+                department: row.get(2)?,
+                program: row.get(3)?,
+            })
+        })
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let mut suggestions = Vec::new();
+    for r in rows.flatten() {
+        suggestions.push(r);
+    }
+
+    Ok(Json(suggestions))
+}
+
 async fn handle_pdf(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>,
@@ -262,7 +309,15 @@ async fn handle_pdf(
         None => return (StatusCode::BAD_REQUEST, "Missing path parameter").into_response(),
     };
 
-    let full_path = if rel_path.starts_with('/') {
+    let path_str = if rel_path.starts_with('/') {
+        rel_path.to_string()
+    } else {
+        format!("/{rel_path}")
+    };
+
+    let full_path = if std::path::Path::new(&path_str).exists() {
+        PathBuf::from(&path_str)
+    } else if std::path::Path::new(rel_path).exists() {
         PathBuf::from(rel_path)
     } else {
         state.indexed_root.join(rel_path)
@@ -311,6 +366,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(handle_index))
         .route("/api/search", get(handle_search))
         .route("/api/facets", get(handle_facets))
+        .route("/api/suggest", get(handle_suggest))
         .route("/api/pdf", get(handle_pdf))
         .nest_service("/static", ServeDir::new("web"))
         .layer(CorsLayer::permissive())
