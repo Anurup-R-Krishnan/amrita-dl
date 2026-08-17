@@ -1,0 +1,54 @@
+[package]
+name = "amrita-dl"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "amrita-dl"
+path = "src/main.rs"
+
+[[bin]]
+name = "server"
+path = "src/bin/server.rs"
+
+[dependencies]
+# async runtime
+tokio          = { version = "1",  features = ["full"] }
+# HTTP
+reqwest        = { version = "0.12", features = ["gzip", "stream", "json"] }
+# HTML parsing
+scraper        = "0.21"
+# URL handling
+url            = "2"
+# Progress bar
+indicatif      = { version = "0.17", features = ["tokio"] }
+# CLI arguments
+clap           = { version = "4", features = ["derive"] }
+# Serialization (for state file)
+serde          = { version = "1", features = ["derive"] }
+serde_json     = "1"
+# Logging
+tracing        = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Async concurrency utils
+futures        = "0.3"
+tokio-util     = { version = "0.7", features = ["io"] }
+# Error handling
+anyhow         = "1"
+# Sanitise filenames
+sanitize-filename = "0.5"
+# QoS #4: PDF validation / QoS #5: dedup
+sha2              = "0.10"
+urlencoding       = "2"
+rayon             = "1.10"
+regex             = "1.10"
+walkdir           = "2.5"
+rusqlite          = { version = "0.31", features = ["bundled", "buildtime_bindgen"] }
+axum              = "0.7"
+tower-http        = { version = "0.5", features = ["cors", "fs", "trace"] }
+
+[profile.release]
+opt-level     = 3
+lto           = true
+codegen-units = 1
+strip         = true
