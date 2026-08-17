@@ -399,11 +399,6 @@
                             <label class="flex items-center cursor-pointer shrink-0 select-none">
                                 <input type="checkbox" :value="item.relative_path" x-model="selectedPaths" class="w-4 h-4 rounded border-2 border-gray-300 text-amrita-maroon focus:ring-0 focus:ring-offset-0 cursor-pointer">
                             </label>
-                            <!-- Bookmark Star -->
-                            <button @click="toggleBookmark(item.relative_path)" :aria-label="isBookmarked(item.relative_path) ? 'Remove bookmark' : 'Bookmark this paper'" class="p-1.5 rounded-lg transition-colors" :class="isBookmarked(item.relative_path) ? 'text-amber-500 hover:text-amber-600' : 'text-gray-300 hover:text-gray-500'" :title="isBookmarked(item.relative_path) ? 'Bookmarked' : 'Bookmark'">
-                                <i class="fa-solid fa-star" x-show="isBookmarked(item.relative_path)"></i>
-                                <i class="fa-regular fa-star" x-show="!isBookmarked(item.relative_path)"></i>
-                            </button>
                             <!-- Copy Share Link -->
                             <button @click="copyShareLink(item)" :aria-label="copySuccessPath === item.relative_path ? 'Link copied' : 'Copy share link'" class="p-1.5 rounded-lg text-gray-400 hover:text-amrita-maroon transition-colors" :title="copySuccessPath === item.relative_path ? 'Link copied!' : 'Copy share link'">
                                 <i class="fa-solid fa-check" x-show="copySuccessPath === item.relative_path"></i>
@@ -447,10 +442,6 @@
                     </div>
                     <!-- Actions -->
                     <div class="flex items-center gap-2 shrink-0">
-                        <button @click="toggleBookmark(item.relative_path)" :aria-label="isBookmarked(item.relative_path) ? 'Remove bookmark' : 'Bookmark this paper'" class="p-1.5 rounded-lg transition-colors" :class="isBookmarked(item.relative_path) ? 'text-amber-500 hover:text-amber-600' : 'text-gray-300 hover:text-gray-500'">
-                            <i class="fa-solid fa-star" x-show="isBookmarked(item.relative_path)"></i>
-                            <i class="fa-regular fa-star" x-show="!isBookmarked(item.relative_path)"></i>
-                        </button>
                         <button @click="copyShareLink(item)" :aria-label="copySuccessPath === item.relative_path ? 'Link copied' : 'Copy share link'" class="p-1.5 rounded-lg text-gray-400 hover:text-amrita-maroon transition-colors">
                             <i class="fa-solid fa-check" x-show="copySuccessPath === item.relative_path"></i>
                             <i class="fa-solid fa-link" x-show="copySuccessPath !== item.relative_path"></i>
@@ -630,41 +621,12 @@
                 activePdf: null,
                 selectedPaths: [],
                 isBatching: false,
-                bookmarks: [],
 
                 async init() {
                     this.$watch('filters', () => { this.page = 1; });
-                    this.loadBookmarks();
                     this.loadFromUrl();
                     await this.fetchFacets();
                     await this.executeSearch();
-                },
-
-                loadBookmarks() {
-                    try {
-                        const stored = localStorage.getItem('amrita_bookmarks');
-                        if (stored) this.bookmarks = JSON.parse(stored);
-                    } catch (e) { this.bookmarks = []; }
-                },
-
-                saveBookmarks() {
-                    try {
-                        localStorage.setItem('amrita_bookmarks', JSON.stringify(this.bookmarks));
-                    } catch (e) {}
-                },
-
-                toggleBookmark(path) {
-                    const idx = this.bookmarks.indexOf(path);
-                    if (idx >= 0) {
-                        this.bookmarks.splice(idx, 1);
-                    } else {
-                        this.bookmarks.push(path);
-                    }
-                    this.saveBookmarks();
-                },
-
-                isBookmarked(path) {
-                    return this.bookmarks.includes(path);
                 },
 
                 async copyShareLink(item) {
