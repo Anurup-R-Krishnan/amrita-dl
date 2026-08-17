@@ -192,74 +192,99 @@ fn sanitize_title(title: &str, code: &str) -> String {
         t = t[..pos].trim().to_string();
     }
 
-    // Strip leading slashes and course code patterns (e.g. "/ 21TAM101/ 21TAM102 TAMIL I")
-    while t.starts_with('/') || t.starts_with(" /") {
-        t = t.trim_start_matches('/').trim().to_string();
-    }
+    // Insert space between digits and following letters (e.g. "21vl601Embedded" -> "21vl601 Embedded")
+    let re_num_letter = regex::Regex::new(r"(\d)([A-Za-z])").unwrap();
+    t = re_num_letter.replace_all(&t, "$1 $2").to_string();
 
-    // Remove embedded course code patterns like "21TAM101" from the title
-    let re_code = regex::Regex::new(r"(?i)\b\d{2}[A-Z]{2,6}\d{3,4}\b").unwrap();
-    t = re_code.replace_all(&t, "").trim().to_string();
+    // Insert space before Roman numerals concatenated to words: e.g. "MalayalamII" -> "Malayalam II"
+    let re_roman_concat = regex::Regex::new(r"(?i)\b([a-z]{3,})(I{2,3}|IV|VI{0,3}|IX|XI{0,2})\b").unwrap();
+    t = re_roman_concat.replace_all(&t, "$1 $2").to_string();
 
-    // Collapse multiple slashes/slashes-with-spaces
-    t = t.replace("/ ", " ").trim().to_string();
+    // Strip ALL leading non-alphabetic characters (handles &, /, ,, ., –, -, spaces, etc.)
+    t = t.trim_start_matches(|c: char| !c.is_alphabetic()).to_string();
 
-    // Detect garbage titles (PDF content leaked through extraction)
-    let garbage_markers = ["[CO-", "[BL-", "mod 19", "LFSR", "CO-1]", "BL-2]", "(2", "shifted from", "and the second"];
-    let is_garbage = garbage_markers.iter().any(|m| t.contains(m))
-        || t.starts_with("of ")
-        || t.starts_with("with ")
-        || t.starts_with(", ")
-        || t.starts_with("0000")
-        || t.eq_ignore_ascii_case(code)
-        || t.starts_with("(")
-        || t.is_empty()
-        // Titles that are just numbers are garbage
-        || t.chars().all(|c| c.is_ascii_digit() || c.is_ascii_whitespace());
+    // Remove course code patterns:
+    // 1) Standard codes with or without 2-digit year prefix: 21TAM101, 24AI632, 21VL601, OL832, CHY251, RM610, CS602
+    let re_code = regex::Regex::new(r"(?i)(\b\d{2})?[A-Z]{2,6}\d{3,4}[A-Z]?\b").unwrap();
+    t = re_code.replace_all(&t, " ").trim().to_string();
+
+    // Clean up remaining punctuation: replace (, ), [, ], /, -, –, :, comma with space
+    t = t.chars().map(|c| match c {
+        '(' | ')' | '[' | ']' | '/' | '-' | '–' | ':' | ',' | '.' => ' ',
+        _ => c,
+    }).collect();
+
+    // Strip any remaining leading non-alpha after code & punctuation removal
+    t = t.trim_start_matches(|c: char| !c.is_alphabetic()).to_string();
+
+    // Collapse multiple spaces
+    t = regex::Regex::new(r"\s+").unwrap().replace_all(&t, " ").trim().to_string();
+
+    // Detect garbage titles (PDF question text leaked through extraction or exam metadata stored as title)
+    let garbage_patterns = [
+        "mod 19", "LFSR", "shifted from", "and the second", "Reflections", 
+        "Nucleons", "Binding Energy", "0 V when", "802.11", "Researchers",
+        "CO-1", "CO-2", "BL-1", "BL-2", "CO 1", "BL 1",
+        "semester", "assessment", "mid term", "mid-term", "end term", "end-term",
+        "regular", "supplymentary", "supplementary", "first sem", "second sem",
+        "third sem", "fourth sem", "fifth sem", "sixth sem", "seventh sem", "eighth sem",
+    ];
+    let lower_t = t.to_lowercase();
+    let is_garbage = garbage_patterns.iter().any(|p| lower_t.contains(&p.to_lowercase()))
+        || lower_t.starts_with("of ")
+        || lower_t.starts_with("with ")
+        || lower_t.starts_with("and ")
+        || lower_t.starts_with("the ")
+        || lower_t.starts_with("are ")
+        || lower_t.starts_with("is ")
+        || lower_t.starts_with("in ")
+        || lower_t.starts_with("ieee ")
+        || t.starts_with('0')
+        || t.starts_with('1')
+        || t.starts_with('2')
+        || t.starts_with('3')
+        || t.starts_with('4')
+        || t.starts_with('5')
+        || t.starts_with('6')
+        || t.starts_with('7')
+        || t.starts_with('8')
+        || t.starts_with('9')
+        || t.len() < 3
+        || t.eq_ignore_ascii_case(code);
 
     if is_garbage {
-        // Fallback: generate title from course code
-        // Sanitize the code itself if it's garbage too
-        let clean_code = if code.contains(' ') || code.contains(',') || code.len() < 3 {
-            "AMRITA".to_string()
-        } else {
-            code.to_string()
-        };
+        let clean_code = sanitize_code(code);
         return format!("{clean_code} Examination Paper");
     }
 
-    // Title Case normalization with Roman numeral and all-caps preservation
-    let small_words = ["and", "or", "of", "the", "in", "for", "a", "an", "to", "on", "at", "by", "with", "from"];
+    // Title Case normalization with Roman numeral and small-words preservation
+    let small_words = ["and", "or", "of", "the", "in", "for", "a", "an", "to", "on", "at", "by", "with", "from", "its"];
+    let roman_numerals = ["II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 
-    let words: Vec<String> = t.split_whitespace().enumerate().map(|(i, w)| {
+    let mut words: Vec<String> = t.split_whitespace().enumerate().map(|(i, w)| {
         let lower = w.to_lowercase();
 
-        // Check if it's a Roman numeral (case-insensitive) - preserve as uppercase
-        let roman_numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
-        if roman_numerals.iter().any(|r| r.eq_ignore_ascii_case(&lower)) && w.chars().all(|c| c.is_ascii_alphabetic()) {
+        // Check if it's a Roman numeral (I, II, III, IV, V, etc.) - keep uppercase
+        if roman_numerals.iter().any(|r| r.eq_ignore_ascii_case(w)) {
             return w.to_uppercase();
         }
-
-        // Preserve genuine acronyms (2-4 uppercase letters, not a small word)
-        if i > 0 && w.len() >= 2 && w.len() <= 4
-            && w.chars().all(|c| c.is_uppercase())
-            && w.chars().any(|c| c.is_alphabetic())
-            && !small_words.contains(&lower.as_str())
-        {
-            return w.to_string();
-        }
-        // First word: also preserve acronyms
-        if i == 0 && w.len() >= 2 && w.len() <= 4
-            && w.chars().all(|c| c.is_uppercase())
-            && w.chars().any(|c| c.is_alphabetic())
-            && !small_words.contains(&lower.as_str())
-        {
-            return w.to_string();
+        // Single I is Roman if position > 0 or multiple words
+        if w.eq_ignore_ascii_case("I") && (i > 0 || t.split_whitespace().count() > 1) {
+            return "I".to_string();
         }
 
-        // Small words after the first word stay lowercase
+        // Small words (AND, OR, OF, etc.) should always be lowercase unless it's the very first word
         if i > 0 && small_words.contains(&lower.as_str()) {
             return lower;
+        }
+
+        // Preserve all-caps acronyms (2-4 letters, not a small word)
+        if w.len() >= 2 && w.len() <= 4
+            && w.chars().all(|c| c.is_uppercase())
+            && w.chars().any(|c| c.is_alphabetic())
+            && !small_words.contains(&lower.as_str())
+        {
+            return w.to_string();
         }
 
         // Normal Title Case: capitalize first letter
@@ -270,16 +295,54 @@ fn sanitize_title(title: &str, code: &str) -> String {
         }
     }).collect();
 
+    // Dedupe repeated adjacent word phrases of any length (1-word, 2-word, 3-word, etc.)
+    // e.g. "Research Methodology Research Methodology" -> "Research Methodology"
+    let mut i = 0;
+    while i < words.len() {
+        let mut found_dup = false;
+        let max_k = (words.len() - i) / 2;
+        for k in (1..=max_k).rev() {
+            let slice1 = &words[i..i+k];
+            let slice2 = &words[i+k..i+2*k];
+            let is_match = slice1.iter().zip(slice2.iter()).all(|(a, b)| a.eq_ignore_ascii_case(b));
+            if is_match {
+                words.drain(i..i+k);
+                found_dup = true;
+                break;
+            }
+        }
+        if !found_dup {
+            i += 1;
+        }
+    }
+
     let result = words.join(" ");
-    if result.is_empty() || result.eq_ignore_ascii_case(code) {
-        let clean_code = if code.contains(' ') || code.contains(',') || code.len() < 3 {
-            "AMRITA".to_string()
-        } else {
-            code.to_string()
-        };
+    if result.is_empty() || result.len() < 3 {
+        let clean_code = sanitize_code(code);
         format!("{clean_code} Examination Paper")
     } else {
         result
+    }
+}
+
+fn sanitize_code(code: &str) -> String {
+    // Clean up garbage course codes
+    let code = code.trim();
+    if code.contains(' ') 
+        || code.contains(',') 
+        || code.len() < 3 
+        || code.chars().all(|c| c.is_ascii_digit())
+        || code.to_lowercase().starts_with("the ")
+        || code.to_lowercase().starts_with("with ")
+        || code.to_lowercase().starts_with("and ")
+        || code.to_lowercase().starts_with("of ")
+        || code.to_lowercase().starts_with("in ")
+        || code.to_lowercase().starts_with("are ")
+        || code.to_lowercase().starts_with("is ")
+    {
+        "AMRITA".to_string()
+    } else {
+        code.to_uppercase()
     }
 }
 
@@ -852,4 +915,64 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_electrochemistry() {
+        assert_eq!(sanitize_title("& Electrochemistry II", "15CHY203"), "Electrochemistry II");
+    }
+
+    #[test]
+    fn test_research_methodology_dedupe() {
+        assert_eq!(sanitize_title("/ 21RM616 Research Methodology/Research Methodology", "21RM616"), "Research Methodology");
+    }
+
+    #[test]
+    fn test_lowercase_code() {
+        assert_eq!(sanitize_title("& OL832 Material Characterization", "OL832"), "Material Characterization");
+    }
+
+    #[test]
+    fn test_malayalam_concat() {
+        assert_eq!(sanitize_title(", 21MAL111, MalayalamII", "21MAL111"), "Malayalam II");
+    }
+
+    #[test]
+    fn test_algebra_parenthesis() {
+        assert_eq!(sanitize_title("Algebra Iii(linear Algebra", "23DLS501"), "Algebra III Linear Algebra");
+    }
+
+    #[test]
+    fn test_allcaps_and() {
+        assert_eq!(sanitize_title(", COMPOSITE MATERIALS AND PROCESSING", "16ME707"), "Composite Materials and Processing");
+    }
+
+    #[test]
+    fn test_embedded_code_prefix() {
+        assert_eq!(sanitize_title("/ 21vl601Embedded Computing and Programming", "21VL601"), "Embedded Computing and Programming");
+    }
+
+    #[test]
+    fn test_adavanced_typo_code() {
+        assert_eq!(sanitize_title("/ 24AI632Adavanced Data Structure", "24AI632"), "Adavanced Data Structure");
+    }
+
+    #[test]
+    fn test_computational_linear_algebra() {
+        assert_eq!(sanitize_title(". Computational Linear Algebra and its Applications", "MA602"), "Computational Linear Algebra and its Applications");
+    }
+
+    #[test]
+    fn test_reflections_garbage() {
+        assert_eq!(sanitize_title(", 002 and 111 reflections.", "15PHY515"), "15PHY515 Examination Paper");
+    }
+
+    #[test]
+    fn test_semester_metadata_garbage() {
+        assert_eq!(sanitize_title("12ELL202 (Third Semester 2015 Regular", "12ELL202"), "12ELL202 Examination Paper");
+    }
 }
