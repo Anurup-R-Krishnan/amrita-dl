@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Searchable archive of 19,600+ Amrita Vishwa Vidyapeetham examination question papers spanning B.Tech, M.Tech, MCA, M.Sc, and PhD programs.">
+    <meta name="theme-color" content="#A4123F">
+    <meta property="og:title" content="Amrita Vishwa Vidyapeetham | Examination Paper Archive">
+    <meta property="og:description" content="Instant full-text search across 19,600+ official examination question papers with department, program, semester, and year filtering.">
+    <meta property="og:type" content="website">
     <title>Amrita Vishwa Vidyapeetham | Examination Archive</title>
     
     <!-- Open Sans Brand Font -->
@@ -113,7 +118,7 @@
 
             <!-- Autocomplete Search Console QoS -->
             <div class="max-w-3xl relative">
-                <form @submit.prevent="executeSearch()" class="relative">
+                <form @submit.prevent="page = 1; executeSearch()" class="relative" role="search">
                     <div class="flex items-center bg-white rounded-xl shadow-2xl overflow-hidden p-1 border-2 border-white/20 focus-within:border-amrita-gold transition-all">
                         <div class="pl-4 pr-2 text-gray-400">
                             <i class="fa-solid fa-magnifying-glass text-lg"></i>
@@ -125,15 +130,16 @@
                                @keydown.arrow-up.prevent="navigateSuggest(-1)"
                                @keydown.enter="selectCurrentSuggest()"
                                placeholder="Search by course code, title, or exam keyword (e.g. 19CSE301, Operating Systems)..." 
+                               aria-label="Search exam papers by code, title, or keyword"
                                class="w-full text-amrita-ink placeholder-gray-400 font-semibold text-sm sm:text-base focus:outline-none px-2 py-3">
                         
                         <template x-if="searchQuery">
-                            <button type="button" @click="searchQuery = ''; suggestions = []; executeSearch()" class="px-3 text-gray-400 hover:text-gray-600">
+                            <button type="button" @click="searchQuery = ''; suggestions = []; executeSearch()" aria-label="Clear search text" class="px-3 text-gray-400 hover:text-gray-600">
                                 <i class="fa-solid fa-xmark"></i>
                             </button>
                         </template>
 
-                        <button type="submit" class="bg-amrita-maroon hover:bg-amrita-dark text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors shrink-0">
+                        <button type="submit" aria-label="Submit search" class="bg-amrita-maroon hover:bg-amrita-dark text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors shrink-0">
                             Search
                         </button>
                     </div>
@@ -174,7 +180,7 @@
                 </div>
             </div>
             
-            <button @click="resetAll()" class="text-xs font-bold text-amrita-maroon hover:underline flex items-center gap-1.5">
+            <button @click="resetAll()" aria-label="Reset all search filters" class="text-xs font-bold text-amrita-maroon hover:underline flex items-center gap-1.5">
                 <i class="fa-solid fa-rotate-left"></i> Reset All Filters
             </button>
         </div>
@@ -186,6 +192,7 @@
             <div class="relative" x-data="{ open: false, filterSearch: '' }">
                 <label class="block text-xs font-extrabold uppercase text-gray-600 mb-1.5">Department</label>
                 <button @click="open = !open" 
+                        aria-label="Filter by department"
                         class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors">
                     <span class="truncate" x-text="filters.department === 'All' ? 'All Departments' : filters.department"></span>
                     <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform" :class="{ 'rotate-180': open }"></i>
@@ -214,13 +221,14 @@
             <div class="relative" x-data="{ open: false, filterSearch: '' }">
                 <label class="block text-xs font-extrabold uppercase text-gray-600 mb-1.5">Degree Program</label>
                 <button @click="open = !open" 
+                        aria-label="Filter by degree program"
                         class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors">
                     <span class="truncate" x-text="filters.program === 'All' ? 'All Programs' : filters.program"></span>
                     <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform" :class="{ 'rotate-180': open }"></i>
                 </button>
 
                 <div x-show="open" @click.away="open = false" x-transition.opacity class="absolute left-0 right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-2" style="display: none;">
-                    <input type="text" x-model="filterSearch" placeholder="Search program..." class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
+                    <input type="text" x-model="filterSearch" placeholder="Search program..." aria-label="Search program filter" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
                     <div class="max-h-56 overflow-y-auto space-y-1">
                         <div @click="filters.program = 'All'; open = false; executeSearch()" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.program === 'All' }">
                             <span>All Programs</span>
@@ -242,13 +250,14 @@
             <div class="relative" x-data="{ open: false, filterSearch: '' }">
                 <label class="block text-xs font-extrabold uppercase text-gray-600 mb-1.5">Course Category</label>
                 <button @click="open = !open" 
+                        aria-label="Filter by course category"
                         class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors">
                     <span class="truncate" x-text="filters.category === 'All' ? 'All Categories' : filters.category"></span>
                     <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform" :class="{ 'rotate-180': open }"></i>
                 </button>
 
                 <div x-show="open" @click.away="open = false" x-transition.opacity class="absolute left-0 right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-2" style="display: none;">
-                    <input type="text" x-model="filterSearch" placeholder="Search category..." class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
+                    <input type="text" x-model="filterSearch" placeholder="Search category..." aria-label="Search category filter" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
                     <div class="max-h-56 overflow-y-auto space-y-1">
                         <div @click="filters.category = 'All'; open = false; executeSearch()" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.category === 'All' }">
                             <span>All Categories</span>
@@ -270,13 +279,14 @@
             <div class="relative" x-data="{ open: false, filterSearch: '' }">
                 <label class="block text-xs font-extrabold uppercase text-gray-600 mb-1.5">Academic Year</label>
                 <button @click="open = !open" 
+                        aria-label="Filter by academic year"
                         class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors">
                     <span class="truncate" x-text="filters.year === 'All' ? 'All Academic Years' : filters.year"></span>
                     <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform" :class="{ 'rotate-180': open }"></i>
                 </button>
 
                 <div x-show="open" @click.away="open = false" x-transition.opacity class="absolute left-0 right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-2" style="display: none;">
-                    <input type="text" x-model="filterSearch" placeholder="Search year..." class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
+                    <input type="text" x-model="filterSearch" placeholder="Search year..." aria-label="Search academic year filter" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
                     <div class="max-h-56 overflow-y-auto space-y-1">
                         <div @click="filters.year = 'All'; open = false; executeSearch()" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.year === 'All' }">
                             <span>All Academic Years</span>
@@ -301,10 +311,22 @@
             <span x-show="searchTime !== null" class="font-mono text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200 font-bold" x-text="`Query executed in ${searchTime} ms`"></span>
         </div>
 
-        <!-- Loading State -->
-        <div x-show="isResolving" class="bg-white p-12 rounded-xl border border-gray-200 text-center shadow-sm space-y-3">
-            <i class="fa-solid fa-circle-notch fa-spin text-amrita-maroon fa-2x"></i>
-            <p class="text-sm font-semibold text-gray-700">Loading exam paper repository index...</p>
+        <!-- Loading State Skeleton Cards -->
+        <div x-show="isResolving" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <template x-for="i in [1, 2, 3, 4, 5, 6]" :key="i">
+                <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4 animate-pulse">
+                    <div class="flex items-center justify-between">
+                        <div class="h-6 w-20 bg-gray-200 rounded"></div>
+                        <div class="h-5 w-24 bg-gray-200 rounded"></div>
+                    </div>
+                    <div class="h-5 w-3/4 bg-gray-200 rounded"></div>
+                    <div class="h-4 w-1/2 bg-gray-100 rounded"></div>
+                    <div class="pt-4 border-t border-gray-100 flex items-center justify-between">
+                        <div class="h-4 w-1/3 bg-gray-100 rounded"></div>
+                        <div class="h-8 w-20 bg-gray-200 rounded-lg"></div>
+                    </div>
+                </div>
+            </template>
         </div>
 
         <!-- Paper Cards Grid -->
@@ -337,10 +359,10 @@
                     <div class="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-2">
                         <span class="text-[11px] font-mono text-gray-400 truncate max-w-[140px]" :title="item.relative_path" x-text="item.relative_path"></span>
                         <div class="flex items-center space-x-2 shrink-0">
-                            <button @click="openPdfModal(item)" class="bg-amrita-maroon hover:bg-amrita-dark text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+                            <button @click="openPdfModal(item)" aria-label="View PDF document" class="bg-amrita-maroon hover:bg-amrita-dark text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
                                 <i class="fa-solid fa-eye"></i> View PDF
                             </button>
-                            <a :href="`/api/pdf?path=${encodeURIComponent(item.relative_path)}`" download class="bg-white text-gray-700 border border-gray-300 text-xs font-bold p-1.5 rounded-lg hover:bg-gray-100 transition-colors" title="Download Original PDF">
+                            <a :href="`/api/pdf?path=${encodeURIComponent(item.relative_path)}`" download aria-label="Download original PDF document" class="bg-white text-gray-700 border border-gray-300 text-xs font-bold p-1.5 rounded-lg hover:bg-gray-100 transition-colors" title="Download Original PDF">
                                 <i class="fa-solid fa-download"></i>
                             </a>
                         </div>
@@ -351,7 +373,7 @@
 
         <!-- Pagination UI Controls -->
         <div x-show="!isResolving && totalPages > 1" class="mt-8 flex items-center justify-between border-t border-gray-200 pt-6">
-            <button @click="changePage(page - 1)" :disabled="page <= 1" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shadow-sm">
+            <button @click="changePage(page - 1)" :disabled="page <= 1" aria-label="Go to previous page" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shadow-sm">
                 <i class="fa-solid fa-chevron-left"></i> Previous Page
             </button>
             
@@ -359,7 +381,7 @@
                 Page <span class="text-amrita-maroon font-extrabold" x-text="page"></span> of <span class="font-extrabold" x-text="totalPages"></span>
             </div>
 
-            <button @click="changePage(page + 1)" :disabled="page >= totalPages" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shadow-sm">
+            <button @click="changePage(page + 1)" :disabled="page >= totalPages" aria-label="Go to next page" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shadow-sm">
                 Next Page <i class="fa-solid fa-chevron-right"></i>
             </button>
         </div>
@@ -374,6 +396,7 @@
 
     <!-- Modal for PDF Preview (Strictly Valid Template Syntax for Alpine V3) -->
     <div x-show="activePdf" 
+         @keydown.escape.window="activePdf = null"
          x-transition.opacity 
          class="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4" 
          style="display: none;">
@@ -386,11 +409,11 @@
                 </div>
                 <div class="flex items-center space-x-3 shrink-0">
                     <template x-if="activePdf">
-                        <a :href="`/api/pdf?path=${encodeURIComponent(activePdf ? activePdf.relative_path : '')}`" download class="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/20 transition-colors flex items-center gap-1.5">
+                        <a :href="`/api/pdf?path=${encodeURIComponent(activePdf ? activePdf.relative_path : '')}`" download aria-label="Download PDF from modal" class="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/20 transition-colors flex items-center gap-1.5">
                             <i class="fa-solid fa-download"></i> Download
                         </a>
                     </template>
-                    <button @click="activePdf = null" class="text-white hover:text-amrita-gold font-bold p-1">
+                    <button @click="activePdf = null" aria-label="Close modal preview" class="text-white hover:text-amrita-gold font-bold p-1">
                         <i class="fa-solid fa-xmark fa-lg"></i>
                     </button>
                 </div>

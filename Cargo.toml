@@ -45,7 +45,7 @@ regex             = "1.10"
 walkdir           = "2.5"
 rusqlite          = { version = "0.31", features = ["bundled", "buildtime_bindgen"] }
 axum              = "0.7"
-tower-http        = { version = "0.5", features = ["cors", "fs", "trace"] }
+tower-http        = { version = "0.5", features = ["cors", "fs", "trace", "compression-full", "set-header"] }
 
 [profile.release]
 opt-level     = 3

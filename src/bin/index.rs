@@ -88,11 +88,22 @@ fn sanitize_title(raw: &str) -> String {
     }
 
     let clean = clean.split_whitespace().collect::<Vec<&str>>().join(" ");
-    let clean = clean
+    let mut clean = clean
         .trim_matches(|c: char| c == '-' || c == ':' || c == '[' || c == ']' || c == '(' || c == ')' || c == '_' || c.is_whitespace())
         .to_string();
 
-    if clean.is_empty() {
+    let re_exam_meta = regex::Regex::new(r"(?i)\b(I+V?|VI?I*)\s*(Ass|Asst|Sem|Semester)\b|\b(First|Second|Third)\s*(Assessment|Sem)\b|\b(Ass|Asst|Mid\s*Term|End\s*Sem|END)\s*(I+V?|VI?I*|\d+)?\b|\b(Jan|Feb|Mar|March|Apr|April|May|June|July|Aug|Sep|Sept|Oct|Nov|Dec)\s*20\d{2}\b").unwrap();
+    if re_exam_meta.is_match(&clean) || clean.starts_with("Ass") || clean.starts_with("Asst") || clean.starts_with("Sem") {
+        let stripped = re_exam_meta.replace_all(&clean, "").to_string();
+        clean = stripped
+            .split_whitespace()
+            .collect::<Vec<&str>>()
+            .join(" ")
+            .trim_matches(|c: char| c == '-' || c == ':' || c == '[' || c == ']' || c == '(' || c == ')' || c == '_' || c.is_whitespace())
+            .to_string();
+    }
+
+    if clean.is_empty() || clean.len() < 3 || clean == "UNKNOWN" {
         "UNKNOWN".to_string()
     } else {
         clean.chars().take(60).collect()

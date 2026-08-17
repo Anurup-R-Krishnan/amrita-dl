@@ -20,7 +20,12 @@ use axum::{
 use rusqlite::{params, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use tokio::fs as tokio_fs;
-use tower_http::{cors::CorsLayer, services::ServeDir};
+use tower_http::{
+    compression::CompressionLayer,
+    cors::CorsLayer,
+    services::ServeDir,
+    set_header::SetResponseHeaderLayer,
+};
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
@@ -214,7 +219,7 @@ async fn handle_search(
     State(state): State<Arc<AppState>>,
     Query(params): Query<SearchParams>,
 ) -> Result<Json<SearchResponse>, (StatusCode, String)> {
-    let limit = params.limit.unwrap_or(24).min(500);
+    let limit = params.limit.unwrap_or(24).clamp(1, 100);
     let offset = params.offset.unwrap_or(0);
 
     let conn = Connection::open_with_flags(
@@ -298,11 +303,19 @@ async fn handle_search(
     let rows = stmt
         .query_map(rusqlite_params.as_slice(), |row| {
             let orig_path: String = row.get(10)?;
-            let rel = orig_path
-                .strip_prefix(state.indexed_root.to_str().unwrap_or_default())
-                .unwrap_or(&orig_path)
-                .trim_start_matches('/')
-                .to_string();
+            let rel = if let Some(pos) = orig_path.find("Examination  Papers/") {
+                orig_path[pos..].to_string()
+            } else if let Some(pos) = orig_path.find("Examination Papers/") {
+                orig_path[pos..].to_string()
+            } else if let Some(pos) = orig_path.find("amrita-exam-papers/") {
+                orig_path[pos + "amrita-exam-papers/".len()..].to_string()
+            } else {
+                orig_path
+                    .strip_prefix(state.indexed_root.to_str().unwrap_or_default())
+                    .unwrap_or(&orig_path)
+                    .trim_start_matches('/')
+                    .to_string()
+            };
 
             let code: String = row.get(1)?;
             let raw_title: String = row.get(2)?;
@@ -428,7 +441,7 @@ async fn handle_suggest(
 
     let pattern = format!("{q}%");
     let mut stmt = conn
-        .prepare("SELECT DISTINCT course_code, course_title, department, program, original_path FROM papers WHERE course_code LIKE ? OR course_title LIKE ? ORDER BY course_code ASC LIMIT 8")
+        .prepare("SELECT DISTINCT course_code, course_title, department, program, original_path FROM papers WHERE course_code LIKE ? OR course_title LIKE ? ORDER BY course_code ASC LIMIT 30")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let rows = stmt
@@ -449,8 +462,16 @@ async fn handle_suggest(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let mut suggestions = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
     for r in rows.flatten() {
-        suggestions.push(r);
+        let key = (r.course_code.clone(), r.course_title.clone());
+        if seen.insert(key) {
+            suggestions.push(r);
+            if suggestions.len() >= 8 {
+                break;
+            }
+        }
     }
 
     Ok(Json(suggestions))
@@ -541,6 +562,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/pdf", get(handle_pdf))
         .nest_service("/static", ServeDir::new("web"))
         .layer(CorsLayer::permissive())
+        .layer(CompressionLayer::new())
+        .layer(SetResponseHeaderLayer::overriding(
+            header::X_CONTENT_TYPE_OPTIONS,
+            header::HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::X_FRAME_OPTIONS,
+            header::HeaderValue::from_static("SAMEORIGIN"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::REFERRER_POLICY,
+            header::HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ))
         .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
