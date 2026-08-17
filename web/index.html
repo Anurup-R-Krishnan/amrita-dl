@@ -143,17 +143,17 @@
                 <div x-show="suggestions.length > 0" 
                      @click.away="suggestions = []" 
                      x-transition.opacity
-                     class="absolute left-0 right-0 top-full mt-2 bg-white text-amrita-ink rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-50 divide-y divide-gray-100"
+                     class="absolute left-0 right-0 top-full mt-2 bg-white text-amrita-ink rounded-xl shadow-2xl border-2 border-amrita-maroon overflow-hidden z-50 divide-y divide-gray-100"
                      style="display: none;">
                     <template x-for="(item, idx) in suggestions" :key="idx">
                         <div @click="selectSuggest(item)" 
                              :class="{ 'bg-amrita-light': suggestIdx === idx }"
-                             class="p-3.5 hover:bg-amrita-light cursor-pointer flex items-center justify-between transition-colors">
-                            <div>
-                                <span class="font-mono font-bold text-xs bg-amrita-maroon text-white px-2 py-0.5 rounded" x-text="item.course_code"></span>
-                                <span class="font-bold text-sm text-gray-900 ml-2" x-text="item.course_title"></span>
+                             class="p-3.5 hover:bg-amrita-light cursor-pointer flex items-center justify-between transition-colors group">
+                            <div class="flex items-center space-x-2 truncate pr-2">
+                                <span class="font-mono font-bold text-xs bg-amrita-maroon text-white px-2 py-0.5 rounded shadow-sm shrink-0" x-text="item.course_code"></span>
+                                <span class="font-bold text-sm text-gray-900 group-hover:text-amrita-maroon transition-colors truncate" x-text="item.course_title"></span>
                             </div>
-                            <span class="text-xs text-gray-500 font-semibold" x-text="`${item.program} • ${item.department}`"></span>
+                            <span class="text-xs text-gray-500 font-semibold shrink-0" x-text="`${item.program} • ${item.department}`"></span>
                         </div>
                     </template>
                 </div>
@@ -332,9 +332,9 @@
                 <!-- Sort By Dropdown -->
                 <div class="flex items-center gap-2">
                     <label for="sort-select" class="text-xs font-extrabold uppercase text-gray-500">Sort</label>
-                    <select id="sort-select" x-model="sort" @change="changeSort()" aria-label="Sort results by" class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:border-amrita-maroon cursor-pointer transition-colors">
-                        <option value="newest">Newest</option>
-                        <option value="year_asc">Oldest</option>
+                    <select id="sort-select" x-model="sort" @change="changeSort()" aria-label="Sort results by" class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amrita-maroon focus:border-amrita-maroon cursor-pointer transition-all shadow-sm">
+                        <option value="newest">Newest First</option>
+                        <option value="year_asc">Oldest First</option>
                         <option value="code_asc">Code A-Z</option>
                         <option value="title_asc">Title A-Z</option>
                     </select>
@@ -342,11 +342,11 @@
                 <!-- Items Per Page Selector -->
                 <div class="flex items-center gap-2">
                     <label for="perpage-select" class="text-xs font-extrabold uppercase text-gray-500">Per Page</label>
-                    <select id="perpage-select" x-model.number="pageSize" @change="changePageSize()" aria-label="Items per page" class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:border-amrita-maroon cursor-pointer transition-colors tabular-nums">
-                        <option value="12">12</option>
-                        <option value="24">24</option>
-                        <option value="48">48</option>
-                        <option value="96">96</option>
+                    <select id="perpage-select" x-model.number="pageSize" @change="changePageSize()" aria-label="Items per page" class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amrita-maroon focus:border-amrita-maroon cursor-pointer transition-all shadow-sm tabular-nums">
+                        <option value="12">12 Items</option>
+                        <option value="24">24 Items</option>
+                        <option value="48">48 Items</option>
+                        <option value="96">96 Items</option>
                     </select>
                 </div>
             </div>
