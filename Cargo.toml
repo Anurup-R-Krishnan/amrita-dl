@@ -44,7 +44,10 @@ rayon             = "1.10"
 regex             = "1.10"
 walkdir           = "2.5"
 rusqlite          = { version = "0.31", features = ["bundled", "buildtime_bindgen"] }
+r2d2              = "0.8"
+r2d2_sqlite       = "0.24"
 axum              = "0.7"
+zip               = "0.6"
 tower-http        = { version = "0.5", features = ["cors", "fs", "trace", "compression-full", "set-header"] }
 
 [profile.release]

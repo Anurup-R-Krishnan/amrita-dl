@@ -168,6 +168,16 @@
             </button>
         </div>
 
+        <!-- Active Filter Chips Bar -->
+        <div x-show="hasActiveFilters()" x-transition class="flex flex-wrap items-center gap-2" aria-label="Active filter chips">
+            <template x-for="(chip, key) in activeFilterChips()">
+                <div :key="key" class="bg-amrita-light text-amrita-maroon text-xs font-bold px-3 py-1.5 rounded-lg border border-amrita-maroon/25 flex items-center gap-2 cursor-pointer hover:bg-amrita-maroon hover:text-white transition-colors" @click="removeFilter(key)">
+                    <span x-text="chip"></span>
+                    <i class="fa-solid fa-xmark text-[10px]"></i>
+                </div>
+            </template>
+        </div>
+
         <!-- 10+ Feature Custom Alpine.js Dropdowns System -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
@@ -314,7 +324,11 @@
         <!-- Paper Cards Grid -->
         <div x-show="!isResolving && searchHits.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <template x-for="item in searchHits" :key="item.id">
-                <div class="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between overflow-hidden">
+                <div class="bg-white rounded-xl border shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between overflow-hidden relative" :class="selectedPaths.includes(item.relative_path) ? 'border-amrita-maroon ring-1 ring-amrita-maroon/30' : 'border-gray-200'">
+                    <!-- Selection Checkbox -->
+                    <div class="absolute top-3 right-3 z-10">
+                        <input type="checkbox" :value="item.relative_path" x-model="selectedPaths" class="w-5 h-5 rounded border-2 border-gray-300 text-amrita-maroon focus:ring-amrita-maroon cursor-pointer">
+                    </div>
                     <div class="p-5 space-y-3">
                         <div class="flex items-start justify-between gap-2 flex-wrap">
                             <span class="bg-amrita-light text-amrita-maroon font-mono font-bold text-xs px-2.5 py-1 rounded border border-amrita-maroon/20" x-text="item.course_code || 'N/A'"></span>
@@ -368,13 +382,52 @@
             </button>
         </div>
 
-        <!-- Null Search State -->
-        <div x-show="!isResolving && searchHits.length === 0" class="bg-white p-12 rounded-xl border border-gray-200 text-center shadow-sm space-y-3">
-            <i class="fa-solid fa-folder-open text-gray-300 fa-3x"></i>
-            <h4 class="font-bold text-gray-800 text-base">No Matching Exam Papers</h4>
-            <p class="text-xs text-gray-500">Broaden your search criteria or click reset to view all available papers.</p>
+        <!-- Empty Result Recovery Card -->
+        <div x-show="!isResolving && searchHits.length === 0" class="bg-white p-12 rounded-xl border border-gray-200 text-center shadow-sm space-y-5">
+            <div class="w-16 h-16 mx-auto bg-amrita-light rounded-full flex items-center justify-center border-2 border-amrita-maroon/20">
+                <i class="fa-solid fa-folder-open text-amrita-maroon text-2xl"></i>
+            </div>
+            <h4 class="font-extrabold text-gray-800 text-lg">No Matching Exam Papers Found</h4>
+            <p class="text-sm text-gray-500 max-w-md mx-auto">Try broadening your search query, clearing active filters, or exploring popular course codes below.</p>
+            <div class="flex flex-wrap items-center justify-center gap-2 pt-2">
+                <button @click="searchQuery = '19CSE301'; executeSearch()" class="bg-gray-100 hover:bg-amrita-maroon hover:text-white text-gray-700 text-xs font-bold px-3 py-2 rounded-lg transition-colors border border-gray-200">19CSE301</button>
+                <button @click="searchQuery = '18MAT101'; executeSearch()" class="bg-gray-100 hover:bg-amrita-maroon hover:text-white text-gray-700 text-xs font-bold px-3 py-2 rounded-lg transition-colors border border-gray-200">18MAT101</button>
+                <button @click="searchQuery = 'Operating Systems'; executeSearch()" class="bg-gray-100 hover:bg-amrita-maroon hover:text-white text-gray-700 text-xs font-bold px-3 py-2 rounded-lg transition-colors border border-gray-200">Operating Systems</button>
+            </div>
+            <button @click="resetAll()" class="bg-amrita-maroon hover:bg-amrita-dark text-white text-sm font-bold px-6 py-2.5 rounded-lg transition-colors inline-flex items-center gap-2 shadow-md">
+                <i class="fa-solid fa-rotate-left"></i> Clear All Filters
+            </button>
         </div>
     </main>
+
+    <!-- Floating Batch Download Action Bar -->
+    <div x-show="selectedPaths.length > 0" 
+         x-transition.opacity
+         x-cloak
+         class="fixed bottom-0 left-0 right-0 z-50 bg-white border-t-2 border-amrita-maroon shadow-2xl" 
+         style="display: none;">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-amrita-maroon text-white rounded-lg flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-file-zipper"></i>
+                </div>
+                <div>
+                    <span class="font-extrabold text-amrita-maroon text-sm" x-text="`${selectedPaths.length} PDF${selectedPaths.length > 1 ? 's' : ''} Selected`"></span>
+                    <p class="text-[11px] text-gray-500 font-semibold">Download selected papers as a ZIP archive</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button @click="selectedPaths = []" class="text-xs font-bold text-gray-600 hover:text-amrita-maroon transition-colors px-4 py-2">
+                    Clear Selection
+                </button>
+                <button @click="downloadBatch()" :disabled="isBatching"
+                    class="bg-amrita-maroon hover:bg-amrita-dark text-white text-xs font-bold px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-wait">
+                    <i class="fa-solid fa-download" :class="{ 'fa-spin': isBatching }"></i>
+                    <span x-text="isBatching ? 'Preparing ZIP...' : 'Download ZIP'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal for PDF Preview (Strictly Valid Template Syntax for Alpine V3) -->
     <div x-show="activePdf" 
@@ -448,11 +501,92 @@
                 isResolving: true,
                 searchTime: null,
                 activePdf: null,
+                selectedPaths: [],
+                isBatching: false,
 
                 async init() {
                     this.$watch('filters', () => { this.page = 1; });
+                    this.loadFromUrl();
                     await this.fetchFacets();
                     await this.executeSearch();
+                },
+
+                loadFromUrl() {
+                    const url = new URLSearchParams(window.location.search);
+                    if (url.has('q')) this.searchQuery = url.get('q');
+                    if (url.has('department') && url.get('department') !== 'All') this.filters.department = url.get('department');
+                    if (url.has('program') && url.get('program') !== 'All') this.filters.program = url.get('program');
+                    if (url.has('category') && url.get('category') !== 'All') this.filters.category = url.get('category');
+                    if (url.has('year') && url.get('year') !== 'All') this.filters.year = url.get('year');
+                    if (url.has('page')) this.page = parseInt(url.get('page')) || 1;
+                },
+
+                syncUrl() {
+                    const params = new URLSearchParams();
+                    if (this.searchQuery.trim()) params.set('q', this.searchQuery.trim());
+                    if (this.filters.department !== 'All') params.set('department', this.filters.department);
+                    if (this.filters.program !== 'All') params.set('program', this.filters.program);
+                    if (this.filters.category !== 'All') params.set('category', this.filters.category);
+                    if (this.filters.year !== 'All') params.set('year', this.filters.year);
+                    if (this.page > 1) params.set('page', this.page);
+                    const qs = params.toString();
+                    const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+                    window.history.replaceState({}, '', newUrl);
+                },
+
+                hasActiveFilters() {
+                    return this.searchQuery.trim() !== '' ||
+                        this.filters.department !== 'All' ||
+                        this.filters.program !== 'All' ||
+                        this.filters.category !== 'All' ||
+                        this.filters.year !== 'All';
+                },
+
+                activeFilterChips() {
+                    const chips = {};
+                    if (this.searchQuery.trim()) chips['searchQuery'] = `Q: "${this.searchQuery.trim()}"`;
+                    if (this.filters.department !== 'All') chips['department'] = this.filters.department;
+                    if (this.filters.program !== 'All') chips['program'] = this.filters.program;
+                    if (this.filters.category !== 'All') chips['category'] = this.filters.category;
+                    if (this.filters.year !== 'All') chips['year'] = this.filters.year;
+                    return chips;
+                },
+
+                removeFilter(key) {
+                    if (key === 'searchQuery') {
+                        this.searchQuery = '';
+                    } else {
+                        this.filters[key] = 'All';
+                    }
+                    this.page = 1;
+                    this.executeSearch();
+                },
+
+                async downloadBatch() {
+                    if (this.selectedPaths.length === 0) return;
+                    this.isBatching = true;
+                    try {
+                        const res = await fetch('/api/download-batch', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ paths: this.selectedPaths }),
+                        });
+                        if (!res.ok) throw new Error('Batch download failed');
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'amrita_exam_papers.zip';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        this.selectedPaths = [];
+                    } catch (e) {
+                        console.error('Batch download error:', e);
+                    } finally {
+                        this.isBatching = false;
+                    }
                 },
 
                 async fetchFacets() {
@@ -524,6 +658,7 @@
                         this.totalResults = data.total || 0;
                         this.totalPages = Math.ceil(this.totalResults / this.pageSize) || 1;
                         this.searchTime = (performance.now() - start).toFixed(1);
+                        this.syncUrl();
                     } catch (err) {
                         console.error('Search error:', err);
                         this.searchHits = [];
@@ -548,6 +683,7 @@
                     this.suggestions = [];
                     this.filters = { department: 'All', program: 'All', category: 'All', year: 'All' };
                     this.page = 1;
+                    this.selectedPaths = [];
                     this.executeSearch();
                 },
 

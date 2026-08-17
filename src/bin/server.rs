@@ -14,10 +14,12 @@ use axum::{
     extract::{Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{Html, IntoResponse, Json},
-    routing::get,
+    routing::{get, post},
     Router,
 };
-use rusqlite::{params, Connection, OpenFlags};
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
+use rusqlite::{params, OpenFlags};
 use serde::{Deserialize, Serialize};
 use tokio::fs as tokio_fs;
 use tower_http::{
@@ -28,12 +30,14 @@ use tower_http::{
 };
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
+use std::sync::RwLock;
 
 #[derive(Clone)]
 struct AppState {
-    db_path: PathBuf,
+    db_pool: Pool<SqliteConnectionManager>,
     indexed_root: PathBuf,
     raw_root: PathBuf,
+    facet_cache: Arc<RwLock<Option<FacetResponse>>>,
 }
 
 #[derive(Deserialize)]
@@ -71,7 +75,7 @@ struct PaperRecord {
     relative_path: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct FacetResponse {
     departments: Vec<(String, usize)>,
     programs: Vec<(String, usize)>,
@@ -86,6 +90,18 @@ struct SuggestRecord {
     course_title: String,
     department: String,
     program: String,
+}
+
+#[derive(Deserialize)]
+struct BatchDownloadRequest {
+    paths: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct HealthResponse {
+    status: String,
+    database: String,
+    total_papers: usize,
 }
 
 fn get_current_year() -> i32 {
@@ -187,6 +203,27 @@ fn format_level(level: &str) -> String {
     }
 }
 
+fn sanitize_fts_query(query: &str) -> String {
+    // Remove FTS5 special characters that cause syntax errors
+    let cleaned: String = query
+        .chars()
+        .map(|c| match c {
+            '"' | '*' | ':' | '(' | ')' | '\n' | '\r' => ' ',
+            _ => c,
+        })
+        .collect();
+
+    // Remove FTS5 keywords
+    let keywords = ["AND", "OR", "NOT", "NEAR"];
+    let words: Vec<&str> = cleaned.split_whitespace().collect();
+    let filtered: Vec<&str> = words
+        .iter()
+        .filter(|w| !keywords.contains(&w.to_uppercase().as_str()))
+        .copied()
+        .collect();
+    filtered.join(" ")
+}
+
 fn expand_synonyms(query: &str) -> String {
     let mut tokens: Vec<String> = Vec::new();
 
@@ -223,11 +260,8 @@ async fn handle_search(
     let limit = params.limit.unwrap_or(24).clamp(1, 100);
     let offset = params.offset.unwrap_or(0);
 
-    let conn = Connection::open_with_flags(
-        &state.db_path,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let conn = state.db_pool.get()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let raw_q = params.q.unwrap_or_default().trim().to_string();
     let has_text_q = !raw_q.is_empty();
@@ -236,7 +270,8 @@ async fn handle_search(
     let mut bindings: Vec<String> = Vec::new();
 
     if has_text_q {
-        let fts_query = expand_synonyms(&raw_q);
+        let sanitized = sanitize_fts_query(&raw_q);
+        let fts_query = expand_synonyms(&sanitized);
         where_clause.push_str(" JOIN papers_fts fts ON p.id = fts.rowid WHERE papers_fts MATCH ? ");
         bindings.push(fts_query);
     } else {
@@ -359,11 +394,17 @@ async fn handle_search(
 async fn handle_facets(
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let conn = Connection::open_with_flags(
-        &state.db_path,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    // Check in-memory facet cache first
+    if let Ok(cache) = state.facet_cache.read() {
+        if let Some(cached) = cache.as_ref() {
+            let mut headers = HeaderMap::new();
+            headers.insert(header::CACHE_CONTROL, "public, max-age=300".parse().unwrap());
+            return Ok((headers, Json(cached.clone())));
+        }
+    }
+
+    let conn = state.db_pool.get()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let mut total_papers = 0;
     let mut stmt_total = conn.prepare("SELECT count(*) FROM papers").unwrap();
@@ -413,16 +454,23 @@ async fn handle_facets(
     let yrs = fetch_facet(&year_sql);
     let cats = fetch_facet("SELECT course_category, count(*) FROM papers GROUP BY course_category ORDER BY count(*) DESC");
 
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CACHE_CONTROL, "public, max-age=300".parse().unwrap());
-
-    Ok((headers, Json(FacetResponse {
+    let facet_response = FacetResponse {
         departments: depts,
         programs: progs,
         years: yrs,
         categories: cats,
         total_papers,
-    })))
+    };
+
+    // Store in cache for subsequent requests
+    if let Ok(mut cache) = state.facet_cache.write() {
+        *cache = Some(facet_response.clone());
+    }
+
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CACHE_CONTROL, "public, max-age=300".parse().unwrap());
+
+    Ok((headers, Json(facet_response)))
 }
 
 async fn handle_suggest(
@@ -434,11 +482,8 @@ async fn handle_suggest(
         _ => return Ok(Json(Vec::new())),
     };
 
-    let conn = Connection::open_with_flags(
-        &state.db_path,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let conn = state.db_pool.get()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let pattern = format!("{q}%");
     let mut stmt = conn
@@ -527,13 +572,105 @@ async fn handle_pdf(
 
     match tokio_fs::read(&canonical).await {
         Ok(bytes) => {
+            let filename = canonical
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("document.pdf");
+
             let mut headers = HeaderMap::new();
             headers.insert(header::CONTENT_TYPE, "application/pdf".parse().unwrap());
-            headers.insert(header::CONTENT_DISPOSITION, "inline".parse().unwrap());
+            headers.insert(
+                header::CONTENT_DISPOSITION,
+                format!("inline; filename=\"{}\"", filename).parse().unwrap(),
+            );
+            headers.insert(
+                header::CACHE_CONTROL,
+                "public, max-age=86400, immutable".parse().unwrap(),
+            );
             (headers, bytes).into_response()
         }
         Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read PDF").into_response(),
     }
+}
+
+async fn handle_health(
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    let conn = match state.db_pool.get() {
+        Ok(c) => c,
+        Err(_) => return Json(HealthResponse {
+            status: "degraded".to_string(),
+            database: "connection_failed".to_string(),
+            total_papers: 0,
+        }),
+    };
+
+    let total: usize = conn
+        .query_row("SELECT count(*) FROM papers", [], |r| r.get(0))
+        .unwrap_or(0);
+
+    Json(HealthResponse {
+        status: "ok".to_string(),
+        database: "connected".to_string(),
+        total_papers: total,
+    })
+}
+
+async fn handle_batch_download(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<BatchDownloadRequest>,
+) -> impl IntoResponse {
+    if req.paths.is_empty() || req.paths.len() > 50 {
+        return (StatusCode::BAD_REQUEST, "Invalid number of paths (1-50 allowed)").into_response();
+    }
+
+    let raw_canonical = state.raw_root.canonicalize().unwrap_or_else(|_| state.raw_root.clone());
+
+    let mut zip_buf = Vec::new();
+    {
+        let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut zip_buf));
+        let zip_opts = zip::write::FileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+
+        for rel_path in &req.paths {
+            if rel_path.contains("..") || rel_path.contains("\\..") {
+                continue;
+            }
+            let rel_clean = rel_path.trim_start_matches('/');
+            let candidate = state.raw_root.join(rel_clean);
+            let canonical = match candidate.canonicalize() {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+            if !canonical.starts_with(&raw_canonical) {
+                continue;
+            }
+            if canonical.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) != Some("pdf".to_string()) {
+                continue;
+            }
+            let filename = canonical
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("document.pdf");
+
+            if let Ok(bytes) = std::fs::read(&canonical) {
+                if zip.start_file(filename, zip_opts).is_ok() {
+                    use std::io::Write;
+                    let _ = zip.write_all(&bytes);
+                }
+            }
+        }
+        let _ = zip.finish();
+    }
+
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, "application/zip".parse().unwrap());
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        "attachment; filename=\"amrita_exam_papers.zip\"".parse().unwrap(),
+    );
+
+    (headers, zip_buf).into_response()
 }
 
 async fn handle_index() -> Html<&'static str> {
@@ -558,10 +695,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
+    let manager = SqliteConnectionManager::file(&db_path)
+        .with_flags(OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX);
+    let db_pool = Pool::builder()
+        .max_size(8)
+        .build(manager)
+        .map_err(|e| {
+            eprintln!("Error: failed to create DB pool: {}", e);
+            e
+        })?;
+
     let shared_state = Arc::new(AppState {
-        db_path,
+        db_pool,
         indexed_root,
         raw_root,
+        facet_cache: Arc::new(RwLock::new(None)),
     });
 
     let app = Router::new()
@@ -570,6 +718,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/facets", get(handle_facets))
         .route("/api/suggest", get(handle_suggest))
         .route("/api/pdf", get(handle_pdf))
+        .route("/api/health", get(handle_health))
+        .route("/api/download-batch", post(handle_batch_download))
         .nest_service("/static", ServeDir::new("web"))
         .layer(CorsLayer::permissive())
         .layer(CompressionLayer::new())
