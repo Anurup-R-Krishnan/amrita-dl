@@ -209,8 +209,8 @@ fn extract_pdf_metadata(pdf_path: &Path) -> PdfMeta {
     for line in header_lines {
         let l_lower = line.to_lowercase();
 
-        if l_lower.contains("b.tech") || l_lower.contains("bachelor of technology") { meta.program = "BTech".to_string(); }
-        else if l_lower.contains("m.tech") || l_lower.contains("master of technology") { meta.program = "MTech".to_string(); }
+        if l_lower.contains("b.tech") || l_lower.contains("bachelor of technology") { meta.program = "B.Tech".to_string(); }
+        else if l_lower.contains("m.tech") || l_lower.contains("master of technology") { meta.program = "M.Tech".to_string(); }
         else if l_lower.contains("mca") || l_lower.contains("master of computer applications") { meta.program = "MCA".to_string(); }
         else if l_lower.contains("ph.d") || l_lower.contains("phd") { meta.program = "PhD".to_string(); }
         else if l_lower.contains("int. m.sc") || l_lower.contains("integrated msc") || l_lower.contains("integrated m.sc") || l_lower.contains("integrated ma") { meta.program = "Integrated M.Sc.".to_string(); }
@@ -246,7 +246,7 @@ fn extract_pdf_metadata(pdf_path: &Path) -> PdfMeta {
         }
     }
 
-    let re_code = regex::Regex::new(r"\b([0-9]{2}[A-Z]{2,6}[0-9]{3,4}|[A-Z]{2,4}[0-9]{3,4})\b").unwrap();
+    let re_code = regex::Regex::new(r"(?i)\b([0-9]{2}[A-Z]{2,6}[0-9]{3,4}|[A-Z]{2,6}[0-9]{3,4}|[A-Z]{2,4}\s?[0-9]{3,4})").unwrap();
     for line in &lines {
         if let Some(mat) = re_code.find(line) {
             let code = mat.as_str();
@@ -272,23 +272,50 @@ fn meta_from_path(pdf_path: &Path, meta: &mut PdfMeta) -> PdfMeta {
     let path_str = pdf_path.to_string_lossy();
     let fname = pdf_path.file_name().unwrap_or_default().to_string_lossy();
 
+    let re_code = regex::Regex::new(r"(?i)\b([0-9]{2}[A-Z]{2,6}[0-9]{3,4}|[A-Z]{2,6}[0-9]{3,4}|[A-Z]{2,4}\s?[0-9]{3,4})").unwrap();
+
     if meta.course_code.is_empty() {
-        let re_code = regex::Regex::new(r"\b([0-9]{2}[A-Z]{2,6}[0-9]{3,4}|[A-Z]{2,4}[0-9]{3,4})\b").unwrap();
         if let Some(mat) = re_code.find(&fname) {
             meta.course_code = mat.as_str().to_string();
         } else {
-            meta.course_code = fname.split('.').next().unwrap_or("UNKNOWN").to_string();
+            let first_part = fname.split('.').next().unwrap_or("UNKNOWN");
+            let clean_code = first_part.split('_').next().unwrap_or(first_part).trim();
+            meta.course_code = if clean_code.is_empty() { "UNKNOWN".to_string() } else { clean_code.to_string() };
         }
     }
 
-    if meta.course_title.is_empty() || meta.course_title == "UNKNOWN" {
-        let raw_title = fname.replace(&meta.course_code, "").replace(".pdf", "");
-        meta.course_title = sanitize_title(&raw_title);
+    // Clean any residual filename suffix from course_code (e.g. 16MA608_Ass II -> 16MA608)
+    if meta.course_code.contains('_') {
+        if let Some(clean) = meta.course_code.split('_').next() {
+            if !clean.trim().is_empty() {
+                meta.course_code = clean.trim().to_string();
+            }
+        }
     }
 
-    if meta.program.is_empty() {
-        if path_str.contains("B.Tech") { meta.program = "BTech".to_string(); }
-        else if path_str.contains("M.Tech") { meta.program = "MTech".to_string(); }
+    if meta.course_title.is_empty() || meta.course_title == "UNKNOWN" || meta.course_title.eq_ignore_ascii_case(&meta.course_code) {
+        let raw_title = fname.replace(&meta.course_code, "").replace(".pdf", "");
+        let mut clean = sanitize_title(&raw_title);
+
+        if clean.is_empty() || clean == "UNKNOWN" || clean.eq_ignore_ascii_case(&meta.course_code) {
+            if let Some(parent) = pdf_path.parent() {
+                let p_name = parent.file_name().unwrap_or_default().to_string_lossy();
+                let p_clean = sanitize_title(&p_name);
+                if !p_clean.is_empty() && p_clean != "UNKNOWN" {
+                    clean = format!("{} ({})", meta.course_code, p_clean);
+                } else {
+                    clean = format!("{} Examination Paper", meta.course_code);
+                }
+            } else {
+                clean = format!("{} Examination Paper", meta.course_code);
+            }
+        }
+        meta.course_title = clean;
+    }
+
+    if meta.program.is_empty() || meta.program == "BTech" || meta.program == "MTech" {
+        if path_str.contains("B.Tech") || meta.program == "BTech" { meta.program = "B.Tech".to_string(); }
+        else if path_str.contains("M.Tech") || meta.program == "MTech" { meta.program = "M.Tech".to_string(); }
         else if path_str.contains("MCA") { meta.program = "MCA".to_string(); }
         else if path_str.contains("PhD") || path_str.contains("Ph.D") { meta.program = "PhD".to_string(); }
         else if path_str.contains("Integrated MSc") || path_str.contains("Int. M.Sc") || path_str.contains("Integrated") { meta.program = "Integrated M.Sc.".to_string(); }
@@ -511,6 +538,8 @@ fn main() -> Result<()> {
         conn.execute("CREATE INDEX idx_program ON papers(program);", [])?;
         conn.execute("CREATE INDEX idx_category ON papers(course_category);", [])?;
         conn.execute("CREATE INDEX idx_year ON papers(year);", [])?;
+        conn.execute("CREATE INDEX idx_code ON papers(course_code);", [])?;
+        conn.execute("CREATE INDEX idx_title ON papers(course_title);", [])?;
 
         conn.execute(
             "CREATE VIRTUAL TABLE papers_fts USING fts5(course_code, course_title, department, program, course_category, year, exam_type)",

@@ -20,7 +20,7 @@ use axum::{
 use rusqlite::{params, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use tokio::fs as tokio_fs;
-use tower_http::{cors::CorsLayer, services::{ServeDir, ServeFile}};
+use tower_http::{cors::CorsLayer, services::ServeDir};
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
@@ -39,6 +39,15 @@ struct SearchParams {
     year: Option<String>,
     category: Option<String>,
     limit: Option<usize>,
+    offset: Option<usize>,
+}
+
+#[derive(Serialize)]
+struct SearchResponse {
+    results: Vec<PaperRecord>,
+    total: usize,
+    offset: usize,
+    limit: usize,
 }
 
 #[derive(Serialize)]
@@ -91,7 +100,11 @@ fn sanitize_year(year: &str) -> String {
 
 fn sanitize_program(prog: &str, dept: &str, orig_path: &str) -> String {
     let p = prog.trim();
-    if p == "General" || p == "Sciences" || p.is_empty() {
+    if p.eq_ignore_ascii_case("BTech") || p.eq_ignore_ascii_case("B.Tech") {
+        "B.Tech".to_string()
+    } else if p.eq_ignore_ascii_case("MTech") || p.eq_ignore_ascii_case("M.Tech") {
+        "M.Tech".to_string()
+    } else if p == "General" || p == "Sciences" || p.is_empty() {
         if orig_path.contains("B.Tech") || dept.contains("Engineering") || dept.contains("Computer") || dept.contains("Electronics") {
             "B.Tech".to_string()
         } else if orig_path.contains("M.Tech") {
@@ -103,11 +116,11 @@ fn sanitize_program(prog: &str, dept: &str, orig_path: &str) -> String {
         } else if dept.contains("Mathematics") || dept.contains("Physical") || dept.contains("Chemical") {
             "M.Sc.".to_string()
         } else {
-            "B.Sc.".to_string()
+            "B.Tech".to_string()
         }
     } else if p.eq_ignore_ascii_case("Communicaiton") || p.contains("Communication") {
         "B.A. Communication".to_string()
-    } else if p.eq_ignore_ascii_case("IntMSc") {
+    } else if p.eq_ignore_ascii_case("IntMSc") || p.eq_ignore_ascii_case("Integrated MSc") {
         "Integrated M.Sc.".to_string()
     } else {
         p.to_string()
@@ -135,7 +148,9 @@ fn format_exam_type(exam: &str) -> String {
         "EndSem" => "End Semester Examination".to_string(),
         "MidTerm" => "Mid Term Assessment".to_string(),
         "Supply" => "Supplementary Examination".to_string(),
-        "First Assessment" => "Continuous Assessment I".to_string(),
+        "First Assessment" | "Ass1" | "Ass 1" | "AssI" => "Continuous Assessment I".to_string(),
+        "Second Assessment" | "Ass2" | "Ass 2" | "AssII" => "Continuous Assessment II".to_string(),
+        "Third Assessment" | "Ass3" | "Ass 3" | "AssIII" => "Continuous Assessment III".to_string(),
         _ => exam.to_string(),
     }
 }
@@ -198,8 +213,9 @@ fn expand_synonyms(query: &str) -> String {
 async fn handle_search(
     State(state): State<Arc<AppState>>,
     Query(params): Query<SearchParams>,
-) -> Result<Json<Vec<PaperRecord>>, (StatusCode, String)> {
-    let limit = params.limit.unwrap_or(50).min(500);
+) -> Result<Json<SearchResponse>, (StatusCode, String)> {
+    let limit = params.limit.unwrap_or(24).min(500);
+    let offset = params.offset.unwrap_or(0);
 
     let conn = Connection::open_with_flags(
         &state.db_path,
@@ -210,71 +226,74 @@ async fn handle_search(
     let raw_q = params.q.unwrap_or_default().trim().to_string();
     let has_text_q = !raw_q.is_empty();
 
-    let mut sql = String::new();
+    let mut where_clause = String::new();
     let mut bindings: Vec<String> = Vec::new();
 
     if has_text_q {
         let fts_query = expand_synonyms(&raw_q);
-        sql.push_str("SELECT p.id, p.course_code, p.course_title, p.department, p.program, p.semester, p.year, p.exam_type, p.course_category, p.course_level, p.original_path ");
-        sql.push_str("FROM papers p ");
-        sql.push_str("JOIN papers_fts fts ON p.id = fts.rowid ");
-        sql.push_str("WHERE papers_fts MATCH ? ");
+        where_clause.push_str(" JOIN papers_fts fts ON p.id = fts.rowid WHERE papers_fts MATCH ? ");
         bindings.push(fts_query);
     } else {
-        sql.push_str("SELECT p.id, p.course_code, p.course_title, p.department, p.program, p.semester, p.year, p.exam_type, p.course_category, p.course_level, p.original_path ");
-        sql.push_str("FROM papers p WHERE 1=1 ");
+        where_clause.push_str(" WHERE 1=1 ");
     }
 
     if let Some(ref dept) = params.department {
         if !dept.is_empty() && dept != "All" {
-            sql.push_str(" AND p.department = ? ");
+            where_clause.push_str(" AND p.department = ? ");
             bindings.push(dept.clone());
         }
     }
 
     if let Some(ref prog) = params.program {
         if !prog.is_empty() && prog != "All" {
-            sql.push_str(" AND p.program = ? ");
+            where_clause.push_str(" AND p.program = ? ");
             bindings.push(prog.clone());
         }
     }
 
     if let Some(ref sem) = params.semester {
         if !sem.is_empty() && sem != "All" {
-            sql.push_str(" AND p.semester = ? ");
+            where_clause.push_str(" AND p.semester = ? ");
             bindings.push(sem.clone());
         }
     }
 
     if let Some(ref yr) = params.year {
         if !yr.is_empty() && yr != "All" {
-            sql.push_str(" AND p.year = ? ");
+            where_clause.push_str(" AND p.year = ? ");
             bindings.push(yr.clone());
         }
     }
 
     if let Some(ref cat) = params.category {
         if !cat.is_empty() && cat != "All" {
-            sql.push_str(" AND p.course_category = ? ");
+            where_clause.push_str(" AND p.course_category = ? ");
             bindings.push(cat.clone());
         }
     }
 
+    // 1. Compute total count for pagination
+    let count_sql = format!("SELECT count(*) FROM papers p {where_clause}");
+    let mut count_stmt = conn.prepare(&count_sql).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let rusqlite_count_params: Vec<&dyn rusqlite::ToSql> = bindings.iter().map(|b| b as &dyn rusqlite::ToSql).collect();
+    let total: usize = count_stmt.query_row(rusqlite_count_params.as_slice(), |r| r.get(0)).unwrap_or(0);
+
+    // 2. Fetch paginated result records
+    let mut sql = format!("SELECT p.id, p.course_code, p.course_title, p.department, p.program, p.semester, p.year, p.exam_type, p.course_category, p.course_level, p.original_path FROM papers p {where_clause}");
+
     if has_text_q {
-        sql.push_str(" ORDER BY bm25(papers_fts, 10.0, 5.0, 2.0) ASC LIMIT ?");
+        sql.push_str(" ORDER BY bm25(papers_fts, 10.0, 5.0, 2.0) ASC LIMIT ? OFFSET ?");
     } else {
-        sql.push_str(" ORDER BY p.year DESC, p.course_code ASC LIMIT ?");
+        sql.push_str(" ORDER BY p.year DESC, p.course_code ASC LIMIT ? OFFSET ?");
     }
 
     let mut stmt = conn
         .prepare(&sql)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let mut rusqlite_params: Vec<&dyn rusqlite::ToSql> = Vec::new();
-    for b in &bindings {
-        rusqlite_params.push(b);
-    }
+    let mut rusqlite_params: Vec<&dyn rusqlite::ToSql> = bindings.iter().map(|b| b as &dyn rusqlite::ToSql).collect();
     rusqlite_params.push(&limit);
+    rusqlite_params.push(&offset);
 
     let rows = stmt
         .query_map(rusqlite_params.as_slice(), |row| {
@@ -315,12 +334,17 @@ async fn handle_search(
         records.push(r);
     }
 
-    Ok(Json(records))
+    Ok(Json(SearchResponse {
+        results: records,
+        total,
+        offset,
+        limit,
+    }))
 }
 
 async fn handle_facets(
     State(state): State<Arc<AppState>>,
-) -> Result<Json<FacetResponse>, (StatusCode, String)> {
+) -> Result<impl IntoResponse, (StatusCode, String)> {
     let conn = Connection::open_with_flags(
         &state.db_path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
@@ -354,7 +378,8 @@ async fn handle_facets(
     let mut progs_map: HashMap<String, usize> = HashMap::new();
     for (p, count) in raw_progs {
         let clean_p = match p.as_str() {
-            "General" => "B.Tech".to_string(),
+            "General" | "BTech" => "B.Tech".to_string(),
+            "MTech" => "M.Tech".to_string(),
             "Sciences" => "M.Sc.".to_string(),
             "Communicaiton" => "B.A. Communication".to_string(),
             "IntMSc" => "Integrated M.Sc.".to_string(),
@@ -374,13 +399,16 @@ async fn handle_facets(
     let yrs = fetch_facet(&year_sql);
     let cats = fetch_facet("SELECT course_category, count(*) FROM papers GROUP BY course_category ORDER BY count(*) DESC");
 
-    Ok(Json(FacetResponse {
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CACHE_CONTROL, "public, max-age=300".parse().unwrap());
+
+    Ok((headers, Json(FacetResponse {
         departments: depts,
         programs: progs,
         years: yrs,
         categories: cats,
         total_papers,
-    }))
+    })))
 }
 
 async fn handle_suggest(
@@ -398,9 +426,9 @@ async fn handle_suggest(
     )
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let pattern = format!("%{q}%");
+    let pattern = format!("{q}%");
     let mut stmt = conn
-        .prepare("SELECT DISTINCT course_code, course_title, department, program, original_path FROM papers WHERE course_code LIKE ? OR course_title LIKE ? LIMIT 8")
+        .prepare("SELECT DISTINCT course_code, course_title, department, program, original_path FROM papers WHERE course_code LIKE ? OR course_title LIKE ? ORDER BY course_code ASC LIMIT 8")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let rows = stmt
@@ -437,6 +465,11 @@ async fn handle_pdf(
         None => return (StatusCode::BAD_REQUEST, "Missing path parameter").into_response(),
     };
 
+    // Sanitize path against directory traversal attacks
+    if rel_path.contains("..") || rel_path.contains("\\..") {
+        return (StatusCode::FORBIDDEN, "Access Denied: Path Traversal Detected").into_response();
+    }
+
     let path_str = if rel_path.starts_with('/') {
         rel_path.to_string()
     } else {
@@ -448,14 +481,24 @@ async fn handle_pdf(
     } else if std::path::Path::new(rel_path).exists() {
         PathBuf::from(rel_path)
     } else {
-        state.indexed_root.join(rel_path)
+        state.indexed_root.join(rel_path.trim_start_matches('/'))
     };
 
-    if !full_path.exists() {
-        return (StatusCode::NOT_FOUND, "PDF File Not Found").into_response();
+    let canonical = match full_path.canonicalize() {
+        Ok(p) => p,
+        Err(_) => return (StatusCode::NOT_FOUND, "PDF File Not Found").into_response(),
+    };
+
+    let root_canonical = state.indexed_root.canonicalize().unwrap_or_else(|_| state.indexed_root.clone());
+    if !canonical.starts_with(&root_canonical) {
+        return (StatusCode::FORBIDDEN, "Access Denied: Path outside indexed root").into_response();
     }
 
-    match tokio_fs::read(&full_path).await {
+    if canonical.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) != Some("pdf".to_string()) {
+        return (StatusCode::FORBIDDEN, "Access Denied: Only PDF files can be served").into_response();
+    }
+
+    match tokio_fs::read(&canonical).await {
         Ok(bytes) => {
             let mut headers = HeaderMap::new();
             headers.insert(header::CONTENT_TYPE, "application/pdf".parse().unwrap());
