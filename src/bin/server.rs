@@ -731,6 +731,30 @@ fn resolve_pdf_path(rel_path: &str, state: &AppState) -> Option<PathBuf> {
         }
     }
 
+    // Fallback: If direct candidate paths failed, locate PDF by filename in indexed_root and raw_root
+    let filename = std::path::Path::new(rel_clean)
+        .file_name()
+        .and_then(|n| n.to_str())?;
+    
+    let target_lower = filename.to_lowercase();
+    let search_roots = [&state.indexed_root, &state.raw_root];
+
+    for root in search_roots {
+        if root.exists() {
+            for entry in walkdir::WalkDir::new(root).into_iter().filter_map(|e| e.ok()) {
+                if entry.file_type().is_file() {
+                    if let Some(name) = entry.file_name().to_str() {
+                        if name.to_lowercase() == target_lower {
+                            if let Ok(canonical) = entry.path().canonicalize() {
+                                return Some(canonical);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     None
 }
 
@@ -847,8 +871,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let raw_root = PathBuf::from(std::env::var("RAW_ROOT").unwrap_or_else(|_| "./amrita-exam-papers".to_string()));
-    let indexed_root = PathBuf::from(std::env::var("INDEXED_ROOT").unwrap_or_else(|_| "./amrita-exam-papers-indexed".to_string()));
+    let raw_root = PathBuf::from(std::env::var("RAW_ROOT").unwrap_or_else(|_| {
+        let sys_path = PathBuf::from("/run/media/anuruprkris/DATA/amrita-exam-papers");
+        if sys_path.exists() {
+            sys_path.to_string_lossy().to_string()
+        } else {
+            "./amrita-exam-papers".to_string()
+        }
+    }));
+    let indexed_root = PathBuf::from(std::env::var("INDEXED_ROOT").unwrap_or_else(|_| {
+        let sys_path = PathBuf::from("/run/media/anuruprkris/DATA/amrita-exam-papers-indexed");
+        if sys_path.exists() {
+            sys_path.to_string_lossy().to_string()
+        } else {
+            "./amrita-exam-papers-indexed".to_string()
+        }
+    }));
     let db_path = std::env::var("INDEX_DB")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
