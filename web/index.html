@@ -82,34 +82,6 @@
 </head>
 <body class="bg-white text-amrita-ink font-sans min-h-full flex flex-col antialiased selection:bg-amrita-maroon selection:text-white" x-data="archiveEngine()" @keydown.window.escape="activePdf = null; suggestions = []">
 
-    <!-- Official Brand White Navigation Header -->
-    <header class="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-            
-            <!-- Amrita Vishwa Vidyapeetham Logotype Brand Mark -->
-            <div class="flex items-center space-x-3 cursor-pointer" @click="resetAll()">
-                <div class="w-10 h-10 bg-amrita-maroon rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-md">
-                    <i class="fa-solid fa-graduation-cap"></i>
-                </div>
-                <div class="flex flex-col">
-                    <span class="font-extrabold text-lg sm:text-xl tracking-tight text-amrita-maroon uppercase leading-none">AMRITA</span>
-                    <span class="font-bold text-[10px] sm:text-xs tracking-widest text-gray-700 uppercase mt-0.5">VISHWA VIDYAPEETHAM</span>
-                </div>
-            </div>
-
-            <!-- Top Academic Navigation Links -->
-            <nav class="hidden md:flex items-center space-x-8 text-sm font-semibold text-gray-700">
-                <a href="#" @click.prevent="resetAll()" class="hover:text-amrita-maroon transition-colors">Home</a>
-                <a href="#filters" class="hover:text-amrita-maroon transition-colors">Faculties</a>
-                <a href="#archive" class="hover:text-amrita-maroon transition-colors">Repository</a>
-                <div class="flex items-center space-x-2 bg-amrita-light px-3 py-1.5 rounded-full border border-amrita-maroon/20 text-amrita-maroon text-xs font-bold">
-                    <i class="fa-solid fa-database"></i>
-                    <span x-text="`${totalPapers.toLocaleString()} Papers`">19,600 Papers</span>
-                </div>
-            </nav>
-        </div>
-    </header>
-
     <!-- Amrita Brand Maroon Hero Banner (Matching Guidelines Grid Visual) -->
     <section class="bg-amrita-maroon text-white py-16 sm:py-20 px-4 sm:px-6 lg:px-8 relative z-30">
         <!-- Grid Pattern Background Layer -->
@@ -188,7 +160,6 @@
                 <div class="w-1.5 h-10 bg-amrita-maroon"></div>
                 <div>
                     <h2 class="font-extrabold text-2xl tracking-tight text-amrita-maroon uppercase">ARCHIVE FILTERS</h2>
-                    <p class="text-xs text-gray-500 font-semibold">Refine dataset using custom multi-dimensional taxonomy dropdowns</p>
                 </div>
             </div>
             
@@ -439,51 +410,17 @@
     </div>
 
     <!-- Official Amrita Brand Footer (White & Maroon) -->
-    <footer class="bg-white text-gray-700 text-xs border-t-2 border-amrita-maroon mt-20 pt-12 pb-8 shadow-inner">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-8 border-b border-gray-200 pb-10">
-                <!-- Column 1: Brand & Institution Info -->
-                <div class="md:col-span-5 space-y-4">
-                    <div class="flex items-center space-x-3">
-                        <div class="w-9 h-9 bg-amrita-maroon text-white rounded-lg flex items-center justify-center font-extrabold text-base shadow-md">A</div>
-                        <div class="flex flex-col">
-                            <span class="font-extrabold text-sm text-amrita-maroon uppercase tracking-tight leading-none">AMRITA</span>
-                            <span class="font-bold text-[10px] tracking-widest text-gray-700 uppercase mt-0.5">VISHWA VIDYAPEETHAM</span>
-                        </div>
-                    </div>
-                    <p class="text-xs text-gray-600 leading-relaxed max-w-sm font-medium">
-                        Centralized Examination Question Paper Repository & Academic Resource Center.
-                    </p>
-                </div>
-
-                <!-- Column 2: Quick Links -->
-                <div class="md:col-span-3 space-y-2.5">
-                    <h4 class="font-extrabold text-xs uppercase tracking-wider text-amrita-maroon">Archive Navigation</h4>
-                    <ul class="space-y-2 text-xs font-semibold">
-                        <li><a href="#filters" class="hover:text-amrita-maroon transition-colors flex items-center gap-1.5"><i class="fa-solid fa-chevron-right text-[9px] text-amrita-maroon"></i> Department Taxonomy</a></li>
-                        <li><a href="#filters" class="hover:text-amrita-maroon transition-colors flex items-center gap-1.5"><i class="fa-solid fa-chevron-right text-[9px] text-amrita-maroon"></i> Degree Programs</a></li>
-                        <li><a href="#archive" class="hover:text-amrita-maroon transition-colors flex items-center gap-1.5"><i class="fa-solid fa-chevron-right text-[9px] text-amrita-maroon"></i> Recent Papers</a></li>
-                    </ul>
-                </div>
-
-                <!-- Column 3: Institutional Information -->
-                <div class="md:col-span-4 space-y-2.5">
-                    <h4 class="font-extrabold text-xs uppercase tracking-wider text-amrita-maroon">Institutional Notice</h4>
-                    <p class="text-[11px] text-gray-600 leading-relaxed font-medium bg-amrita-light/60 p-3 rounded-lg border border-amrita-maroon/15">
-                        Maintained for academic review and student preparation across all campuses. All paper copyrights belong to Amrita Vishwa Vidyapeetham.
-                    </p>
+    <footer class="bg-white text-gray-700 text-xs border-t-2 border-amrita-maroon mt-20 py-8 shadow-inner">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-amrita-maroon text-white rounded-lg flex items-center justify-center font-extrabold text-sm shadow-md">A</div>
+                <div class="flex flex-col">
+                    <span class="font-extrabold text-xs text-amrita-maroon uppercase tracking-tight leading-none">AMRITA VISHWA VIDYAPEETHAM</span>
+                    <span class="font-bold text-[10px] tracking-wider text-gray-500 uppercase mt-0.5">Centralized Examination Paper Archive</span>
                 </div>
             </div>
-
-            <!-- Footer Bottom Bar -->
-            <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-                <div class="flex items-center space-x-2 text-gray-600 text-[11px] font-semibold">
-                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm"></span>
-                    <span>System Active & Verified</span>
-                </div>
-                <div class="font-mono text-amrita-maroon font-bold text-center sm:text-right text-[11px]" x-text="`© ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham. All rights reserved.`">
-                    © 2026 Amrita Vishwa Vidyapeetham. All rights reserved.
-                </div>
+            <div class="font-mono text-amrita-maroon font-bold text-center sm:text-right text-[11px]" x-text="`© ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham. All rights reserved.`">
+                © 2026 Amrita Vishwa Vidyapeetham. All rights reserved.
             </div>
         </div>
     </footer>
