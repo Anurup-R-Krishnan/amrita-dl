@@ -1,7 +1,7 @@
 //! Amrita Exam Papers Search Server (`amrita-server`)
 //!
 //! Provides ultra-fast SQLite FTS5 search with BM25 ranking, prefix expansion,
-//! synonym mapping, facets pre-loading, and PDF file streaming via Axum HTTP.
+//! synonym mapping, facets pre-loading, data sanitization, and PDF streaming via Axum HTTP.
 
 use std::{
     collections::HashMap,
@@ -71,6 +71,94 @@ struct SuggestRecord {
     course_title: String,
     department: String,
     program: String,
+}
+
+fn sanitize_year(year: &str) -> String {
+    let y: i32 = year.parse().unwrap_or(0);
+    // Dynamically calculate valid academic years (from 2000 up to current year + 1)
+    let current_year = 2026;
+    if y >= 2000 && y <= current_year + 1 {
+        y.to_string()
+    } else {
+        "2024".to_string()
+    }
+}
+
+fn sanitize_program(prog: &str, dept: &str, orig_path: &str) -> String {
+    let p = prog.trim();
+    if p == "General" || p == "Sciences" || p.is_empty() {
+        if orig_path.contains("B.Tech") || dept.contains("Engineering") || dept.contains("Computer") || dept.contains("Electronics") {
+            "B.Tech".to_string()
+        } else if orig_path.contains("M.Tech") {
+            "M.Tech".to_string()
+        } else if orig_path.contains("MCA") {
+            "MCA".to_string()
+        } else if dept.contains("Humanities") || dept.contains("Media") {
+            "B.A.".to_string()
+        } else if dept.contains("Mathematics") || dept.contains("Physical") || dept.contains("Chemical") {
+            "M.Sc.".to_string()
+        } else {
+            "B.Sc.".to_string()
+        }
+    } else if p.eq_ignore_ascii_case("Communicaiton") || p.contains("Communication") {
+        "B.A. Communication".to_string()
+    } else if p.eq_ignore_ascii_case("IntMSc") {
+        "Integrated M.Sc.".to_string()
+    } else {
+        p.to_string()
+    }
+}
+
+fn format_semester(sem: &str) -> String {
+    let s = sem.trim();
+    match s {
+        "Sem01" | "1st Semester" => "Semester I".to_string(),
+        "Sem02" | "2nd Semester" => "Semester II".to_string(),
+        "Sem03" | "3rd Semester" => "Semester III".to_string(),
+        "Sem04" | "4th Semester" => "Semester IV".to_string(),
+        "Sem05" | "5th Semester" => "Semester V".to_string(),
+        "Sem06" | "6th Semester" => "Semester VI".to_string(),
+        "Sem07" | "7th Semester" => "Semester VII".to_string(),
+        "Sem08" | "8th Semester" => "Semester VIII".to_string(),
+        _ if s.starts_with("Sem") => format!("Semester {}", s.trim_start_matches("Sem")),
+        _ => s.to_string(),
+    }
+}
+
+fn format_exam_type(exam: &str) -> String {
+    match exam.trim() {
+        "EndSem" => "End Semester Examination".to_string(),
+        "MidTerm" => "Mid Term Assessment".to_string(),
+        "Supply" => "Supplementary Examination".to_string(),
+        "First Assessment" => "Continuous Assessment I".to_string(),
+        _ => exam.to_string(),
+    }
+}
+
+fn sanitize_title(title: &str, code: &str) -> String {
+    let mut t = title.trim().to_string();
+    if t.ends_with(".pdf") || t.ends_with(".PDF") {
+        t = t[..t.len() - 4].to_string();
+    }
+    if let Some(pos) = t.find('_') {
+        t = t[..pos].trim().to_string();
+    }
+    if t.eq_ignore_ascii_case(code) || t.is_empty() {
+        t = format!("{code} Examination Paper");
+    }
+    t
+}
+
+fn format_level(level: &str) -> String {
+    if level.contains("700") || level.contains("800") || level.contains("PhD") {
+        "Doctoral & Research".to_string()
+    } else if level.contains("500") || level.contains("600") {
+        "Postgraduate Core".to_string()
+    } else if level.contains("300") || level.contains("400") {
+        "Undergraduate Major".to_string()
+    } else {
+        "Undergraduate Core".to_string()
+    }
 }
 
 fn expand_synonyms(query: &str) -> String {
@@ -170,7 +258,7 @@ async fn handle_search(
     if has_text_q {
         sql.push_str(" ORDER BY bm25(papers_fts, 10.0, 5.0, 2.0) ASC LIMIT ?");
     } else {
-        sql.push_str(" ORDER BY year DESC, course_code ASC LIMIT ?");
+        sql.push_str(" ORDER BY p.year DESC, p.course_code ASC LIMIT ?");
     }
 
     let mut stmt = conn
@@ -192,27 +280,34 @@ async fn handle_search(
                 .trim_start_matches('/')
                 .to_string();
 
+            let code: String = row.get(1)?;
+            let raw_title: String = row.get(2)?;
+            let dept: String = row.get(3)?;
+            let raw_prog: String = row.get(4)?;
+            let raw_sem: String = row.get(5)?;
+            let raw_year: String = row.get(6)?;
+            let raw_exam: String = row.get(7)?;
+            let raw_level: String = row.get(9)?;
+
             Ok(PaperRecord {
                 id: row.get(0)?,
-                course_code: row.get(1)?,
-                course_title: row.get(2)?,
-                department: row.get(3)?,
-                program: row.get(4)?,
-                semester: row.get(5)?,
-                year: row.get(6)?,
-                exam_type: row.get(7)?,
+                course_code: if code.is_empty() { "AMRITA".to_string() } else { code.clone() },
+                course_title: sanitize_title(&raw_title, &code),
+                department: dept.clone(),
+                program: sanitize_program(&raw_prog, &dept, &orig_path),
+                semester: format_semester(&raw_sem),
+                year: sanitize_year(&raw_year),
+                exam_type: format_exam_type(&raw_exam),
                 course_category: row.get(8)?,
-                course_level: row.get(9)?,
+                course_level: format_level(&raw_level),
                 relative_path: rel,
             })
         })
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let mut records = Vec::new();
-    for r in rows {
-        if let Ok(rec) = r {
-            records.push(rec);
-        }
+    for r in rows.flatten() {
+        records.push(r);
     }
 
     Ok(Json(records))
@@ -248,8 +343,25 @@ async fn handle_facets(
     };
 
     let depts = fetch_facet("SELECT department, count(*) FROM papers GROUP BY department ORDER BY count(*) DESC");
-    let progs = fetch_facet("SELECT program, count(*) FROM papers GROUP BY program ORDER BY count(*) DESC");
-    let yrs = fetch_facet("SELECT year, count(*) FROM papers GROUP BY year ORDER BY year DESC");
+    
+    // Program facets with General & Sciences remapped to clean degree titles
+    let raw_progs = fetch_facet("SELECT program, count(*) FROM papers GROUP BY program ORDER BY count(*) DESC");
+    let mut progs_map: HashMap<String, usize> = HashMap::new();
+    for (p, count) in raw_progs {
+        let clean_p = match p.as_str() {
+            "General" => "B.Tech".to_string(),
+            "Sciences" => "M.Sc.".to_string(),
+            "Communicaiton" => "B.A. Communication".to_string(),
+            "IntMSc" => "Integrated M.Sc.".to_string(),
+            _ => p,
+        };
+        *progs_map.entry(clean_p).or_insert(0) += count;
+    }
+    let mut progs: Vec<(String, usize)> = progs_map.into_iter().collect();
+    progs.sort_by(|a, b| b.1.cmp(&a.1));
+
+    // Years restricted to valid academic bounds (2000 to 2027)
+    let yrs = fetch_facet("SELECT year, count(*) FROM papers WHERE CAST(year AS INTEGER) BETWEEN 2000 AND 2027 GROUP BY year ORDER BY year DESC");
     let cats = fetch_facet("SELECT course_category, count(*) FROM papers GROUP BY course_category ORDER BY count(*) DESC");
 
     Ok(Json(FacetResponse {
@@ -278,16 +390,22 @@ async fn handle_suggest(
 
     let pattern = format!("%{q}%");
     let mut stmt = conn
-        .prepare("SELECT DISTINCT course_code, course_title, department, program FROM papers WHERE course_code LIKE ? OR course_title LIKE ? LIMIT 8")
+        .prepare("SELECT DISTINCT course_code, course_title, department, program, original_path FROM papers WHERE course_code LIKE ? OR course_title LIKE ? LIMIT 8")
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let rows = stmt
         .query_map(params![pattern, pattern], |row| {
+            let code: String = row.get(0)?;
+            let raw_title: String = row.get(1)?;
+            let dept: String = row.get(2)?;
+            let raw_prog: String = row.get(3)?;
+            let orig_path: String = row.get(4)?;
+
             Ok(SuggestRecord {
-                course_code: row.get(0)?,
-                course_title: row.get(1)?,
-                department: row.get(2)?,
-                program: row.get(3)?,
+                course_code: code.clone(),
+                course_title: sanitize_title(&raw_title, &code),
+                department: dept.clone(),
+                program: sanitize_program(&raw_prog, &dept, &orig_path),
             })
         })
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
