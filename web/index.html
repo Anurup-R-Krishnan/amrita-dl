@@ -1,16 +1,14 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en" class="scroll-smooth bg-[#F5F5F3]">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Amrita Vishwa Vidyapeetham | Exam Paper Search Studio</title>
+    <title>Amrita Examination Archives</title>
     
-    <!-- Google Fonts: Outfit + Plus Jakarta Sans + JetBrains Mono -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Premium Fonts: Cabinet Grotesk & Satoshi -->
+    <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,500,700,900&f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
 
-    <!-- Tailwind CSS CDN -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -20,410 +18,319 @@
                         amrita: {
                             maroon: '#A4123F',
                             dark: '#7D0D2F',
-                            crimson: '#C4164B',
-                            light: '#FAF0F2',
-                            gold: '#D4AF37',
-                            goldlight: '#FBF5E6',
-                            surface: '#0F172A',
-                            paper: '#FFFFFF'
+                            ink: '#0D0D0E',
+                            paper: '#F5F5F3',
+                            gold: '#D4AF37'
                         }
                     },
                     fontFamily: {
-                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-                        display: ['"Outfit"', 'sans-serif'],
-                        mono: ['"JetBrains Mono"', 'monospace']
+                        sans: ['Satoshi', 'sans-serif'],
+                        display: ['Cabinet Grotesk', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
                     }
                 }
             }
         }
     </script>
     
-    <!-- Alpine.js CDN -->
+    <!-- GSAP Core & ScrollTrigger -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+
+    <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <!-- FontAwesome CDN -->
+
+    <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         [x-cloak] { display: none !important; }
-        ::selection { background: #A4123F; color: #FFFFFF; }
-        /* Custom scrollbars */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #F1F5F9; }
-        ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+        ::selection { background: #0D0D0E; color: #F5F5F3; }
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
     </style>
 </head>
-<body class="bg-[#F8FAFC] text-slate-800 font-sans min-h-full flex flex-col antialiased overflow-x-hidden" x-data="paperStudio()" @keydown.window.escape="activePdf = null" @keydown.window.slash.prevent="$refs.searchInput.focus()">
+<body class="text-amrita-ink font-sans min-h-screen flex flex-col antialiased overflow-x-hidden selection:bg-amrita-maroon selection:text-white" x-data="archiveEngine()" @keydown.window.escape="activePdf = null">
 
-    <!-- Sticky Glass Navigation Header -->
-    <header class="sticky top-0 z-40 bg-[#A4123F]/95 backdrop-blur-md text-white border-b-2 border-[#D4AF37] shadow-lg transition-all">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
-            
-            <!-- Brand Identity -->
-            <div class="flex items-center space-x-3 cursor-pointer" @click="resetFilters()">
-                <div class="w-11 h-11 bg-white rounded-xl shadow-md flex items-center justify-center text-[#A4123F] font-bold text-xl transform hover:rotate-3 transition-transform">
-                    <i class="fa-solid fa-graduation-cap text-2xl"></i>
-                </div>
-                <div>
-                    <div class="flex items-center gap-2">
-                        <h1 class="font-display font-extrabold text-lg sm:text-xl tracking-tight leading-none uppercase text-white">Amrita Vishwa Vidyapeetham</h1>
-                        <span class="bg-[#D4AF37] text-slate-900 text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-wider">Archive</span>
-                    </div>
-                    <p class="text-xs text-rose-100 font-medium tracking-wide mt-0.5">Digital Examination Repository & Analytics</p>
-                </div>
+    <!-- Floating Minimalist Navigation -->
+    <nav class="fixed top-6 left-0 right-0 z-50 px-6 pointer-events-none">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="bg-white/90 backdrop-blur-xl pointer-events-auto px-5 py-3 rounded-full flex items-center gap-3 shadow-[0_8px_32px_rgba(0,0,0,0.06)] border border-black/5">
+                <div class="w-8 h-8 rounded-full bg-amrita-maroon flex items-center justify-center text-white font-display font-bold">A</div>
+                <span class="font-display font-bold text-sm tracking-wide uppercase text-amrita-ink">University Archive</span>
             </div>
+            
+            <div class="bg-white/90 backdrop-blur-xl pointer-events-auto px-5 py-3 rounded-full flex items-center gap-3 shadow-[0_8px_32px_rgba(0,0,0,0.06)] border border-black/5">
+                <span class="font-medium text-sm text-amrita-ink/80" x-text="totalPapers ? `${totalPapers.toLocaleString()} Documents` : 'Loading Database'"></span>
+            </div>
+        </div>
+    </nav>
 
-            <!-- Header Quick Actions & Stats -->
-            <div class="flex items-center space-x-4">
-                <div class="hidden md:flex items-center space-x-3 bg-[#7D0D2F]/80 px-4 py-2 rounded-xl border border-white/10 text-xs font-mono text-white/90 shadow-inner">
-                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span x-text="`${facets.total_papers ? facets.total_papers.toLocaleString() : '19,600'} Papers`"></span>
-                    <span class="text-rose-300">|</span>
-                    <span class="text-amber-300 font-semibold">SQLite FTS5 BM25</span>
-                </div>
-                <div class="text-xs text-rose-200 hidden sm:block">
-                    Press <kbd class="px-2 py-1 bg-white/10 rounded border border-white/20 font-mono text-white text-[11px] font-bold">/</kbd> to search
-                </div>
+    <!-- Cinematic Hero Section -->
+    <header class="relative pt-48 pb-20 md:pt-56 md:pb-24 px-6 max-w-[100vw] overflow-hidden flex flex-col items-center justify-center text-center">
+        <!-- Ambient Background Wash -->
+        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-amrita-maroon/5 rounded-full blur-[100px] pointer-events-none -z-10"></div>
+        
+        <div class="max-w-6xl mx-auto relative z-10 w-full gsap-hero-reveal border-b border-black/5 pb-24">
+            <!-- Fluid, wide, 2-line heading with inline image pill -->
+            <h1 class="font-display font-black text-[clamp(3.5rem,7vw,7.5rem)] leading-[0.85] tracking-tight uppercase text-amrita-ink text-balance">
+                The Examination <span class="inline-block w-20 h-10 md:w-40 md:h-20 rounded-full bg-amrita-maroon align-middle mx-2 md:mx-4 bg-cover bg-center grayscale contrast-125 shadow-inner border border-black/10" style="background-image: url('https://picsum.photos/seed/architecture/400/200'); mix-blend-mode: multiply;"></span><br/>
+                <span class="text-amrita-maroon">Repository.</span>
+            </h1>
+            
+            <p class="mt-8 text-lg font-medium text-amrita-ink/60 max-w-2xl mx-auto text-balance">
+                A curated academic library encompassing past assessments, evaluations, and reference materials spanning multiple university departments.
+            </p>
+
+            <!-- Clean Search Console -->
+            <div class="max-w-3xl mx-auto mt-16 relative">
+                <form @submit.prevent="executeSearch()" class="relative group flex items-center">
+                    <input type="text"
+                           x-model="searchQuery"
+                           @input.debounce.300ms="executeSearch()"
+                           placeholder="Search by course code, title, or keyword..."
+                           class="w-full bg-white backdrop-blur-md text-amrita-ink placeholder:text-amrita-ink/30 font-medium text-xl px-8 py-6 rounded-2xl focus:outline-none focus:ring-4 focus:ring-amrita-maroon/10 shadow-sm border border-black/5 transition-all outline-none"
+                    >
+                    <button type="submit" class="absolute right-4 w-12 h-12 flex items-center justify-center bg-amrita-maroon text-white rounded-xl hover:bg-amrita-dark transition-colors shadow-md group-hover:scale-105 duration-300">
+                        <i class="fa-solid fa-arrow-right text-lg"></i>
+                    </button>
+                </form>
             </div>
         </div>
     </header>
 
-    <!-- Hero Section with Cinematic Center & Wide Horizontal Flow -->
-    <section class="relative bg-gradient-to-b from-[#A4123F] via-[#7D0D2F] to-slate-900 text-white py-16 sm:py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        <!-- Ambient Radial Background Wash -->
-        <div class="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-400 via-rose-600 to-transparent"></div>
-        <div class="absolute -top-24 -right-24 w-96 h-96 bg-rose-500/20 rounded-full blur-3xl pointer-events-none"></div>
-
-        <div class="max-w-5xl mx-auto text-center space-y-6 relative z-10">
+    <!-- Grid Architecture: Gapless Facet Bento -->
+    <section class="max-w-7xl mx-auto px-6 py-12 w-full z-10 relative">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 grid-flow-dense">
             
-            <!-- H1 Limited to 2 Lines for Horizontal Flow -->
-            <h2 class="font-display font-extrabold text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-tight max-w-4xl mx-auto drop-shadow-sm">
-                Instant Sub-Millisecond Search Across <span class="underline decoration-[#D4AF37] underline-offset-8 decoration-4">19,600 Exam Papers</span>
-            </h2>
-            <p class="text-sm sm:text-base text-rose-100 max-w-2xl mx-auto font-normal leading-relaxed opacity-95">
-                Query course codes, full course names, semester exams, or department catalogs with intelligent BM25 search ranking and PDF streaming.
-            </p>
-
-            <!-- Search Console Input -->
-            <div class="max-w-3xl mx-auto pt-4">
-                <form @submit.prevent="fetchSearch()" class="relative group">
-                    <div class="relative flex items-center bg-white rounded-2xl shadow-2xl p-2 border-2 border-[#D4AF37]/50 focus-within:border-[#D4AF37] focus-within:ring-4 focus-within:ring-[#D4AF37]/20 transition-all">
-                        <div class="pl-4 pr-2 text-slate-400 group-focus-within:text-[#A4123F] transition-colors">
-                            <i class="fa-solid fa-magnifying-glass text-xl"></i>
-                        </div>
-                        <input type="text" 
-                               x-ref="searchInput"
-                               x-model="query" 
-                               @input.debounce.250ms="fetchSearch()" 
-                               placeholder="Type course code (19CSE301), title (Operating Systems), or keywords..." 
-                               class="w-full bg-transparent text-slate-900 placeholder-slate-400 font-medium text-base sm:text-lg focus:outline-none px-2 py-2">
-                        
-                        <button type="button" x-show="query" @click="query = ''; fetchSearch()" class="text-slate-400 hover:text-slate-600 px-2">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
-
-                        <button type="submit" class="bg-[#A4123F] hover:bg-[#7D0D2F] text-white font-display font-bold px-6 py-3 rounded-xl text-sm shadow-md transition-all flex items-center gap-2 shrink-0">
-                            <span>Search</span>
-                            <i class="fa-solid fa-arrow-right text-xs"></i>
-                        </button>
-                    </div>
-                </form>
-
-                <!-- Intelligent Synonym & Quick Tag Shortcuts -->
-                <div class="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs">
-                    <span class="text-rose-200 font-medium mr-1"><i class="fa-solid fa-bolt text-amber-300 mr-1"></i>Quick Queries:</span>
-                    <template x-for="tag in ['OS', 'DSA', 'AI', 'ML', '19CSE*', '23ELC*']" :key="tag">
-                        <button @click="query = tag; fetchSearch()" class="bg-white/10 hover:bg-white/20 border border-white/20 text-white font-mono px-2.5 py-1 rounded-lg transition-colors cursor-pointer" x-text="tag"></button>
-                    </template>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Main Content Area: Facet Controls + Results & Bento Studio -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex-1 w-full space-y-8">
-
-        <!-- Search Timing & Filter Overview Bar -->
-        <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div class="flex items-center space-x-3 text-sm">
-                <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
-                <span class="font-medium text-slate-700">Found <strong class="text-slate-900 font-bold" x-text="results.length">0</strong> matching exam papers</span>
-                <span x-show="searchTime !== null" class="font-mono text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md border border-emerald-200 font-semibold" x-text="`BM25 Executed in ${searchTime} ms`"></span>
-            </div>
-
-            <!-- Active Filter Badges -->
-            <div class="flex flex-wrap items-center gap-2">
-                <template x-if="selectedDept !== 'All'">
-                    <span class="bg-[#FAF0F2] text-[#A4123F] text-xs font-bold px-3 py-1 rounded-lg border border-[#A4123F]/20 flex items-center gap-1.5">
-                        <span x-text="`Dept: ${selectedDept}`"></span>
-                        <i @click="selectedDept = 'All'; fetchSearch()" class="fa-solid fa-xmark cursor-pointer hover:text-[#7D0D2F]"></i>
-                    </span>
-                </template>
-                <template x-if="selectedProgram !== 'All'">
-                    <span class="bg-slate-100 text-slate-800 text-xs font-bold px-3 py-1 rounded-lg border border-slate-200 flex items-center gap-1.5">
-                        <span x-text="`Prog: ${selectedProgram}`"></span>
-                        <i @click="selectedProgram = 'All'; fetchSearch()" class="fa-solid fa-xmark cursor-pointer hover:text-slate-900"></i>
-                    </span>
-                </template>
-                <template x-if="selectedYear !== 'All'">
-                    <span class="bg-amber-50 text-amber-900 text-xs font-bold px-3 py-1 rounded-lg border border-amber-200 flex items-center gap-1.5">
-                        <span x-text="`Year: ${selectedYear}`"></span>
-                        <i @click="selectedYear = 'All'; fetchSearch()" class="fa-solid fa-xmark cursor-pointer hover:text-amber-950"></i>
-                    </span>
-                </template>
-                <button x-show="selectedDept !== 'All' || selectedProgram !== 'All' || selectedYear !== 'All' || selectedCategory !== 'All'" @click="resetFilters()" class="text-xs text-[#A4123F] hover:underline font-bold">Reset Filters</button>
-            </div>
-        </div>
-
-        <!-- Facet Filter Selectors (Gapless Responsive Grid) -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 grid-flow-dense">
-            
-            <!-- Department Selector -->
-            <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-2 hover:border-[#A4123F]/30 transition-colors">
-                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <i class="fa-solid fa-building-columns text-[#A4123F]"></i> Department
-                </label>
-                <select x-model="selectedDept" @change="fetchSearch()" class="w-full text-xs font-medium text-slate-800 bg-slate-50 rounded-lg p-2.5 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#A4123F]">
+            <!-- Bento Cell: Department -->
+            <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-black/5 flex flex-col justify-between group hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                <span class="text-[10px] font-black uppercase tracking-widest text-amrita-ink/40 mb-4">Department Filter</span>
+                <select x-model="filters.department" @change="executeSearch()" class="appearance-none font-display font-medium text-lg text-amrita-ink bg-transparent focus:outline-none cursor-pointer w-full truncate">
                     <option value="All">All Departments</option>
-                    <template x-for="d in facets.departments" :key="d[0]">
+                    <template x-for="d in facetData.departments" :key="d[0]">
                         <option :value="d[0]" x-text="`${d[0]} (${d[1]})`"></option>
                     </template>
                 </select>
             </div>
 
-            <!-- Program Selector -->
-            <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-2 hover:border-[#A4123F]/30 transition-colors">
-                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <i class="fa-solid fa-graduation-cap text-[#A4123F]"></i> Program
-                </label>
-                <select x-model="selectedProgram" @change="fetchSearch()" class="w-full text-xs font-medium text-slate-800 bg-slate-50 rounded-lg p-2.5 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#A4123F]">
+            <!-- Bento Cell: Program -->
+            <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-black/5 flex flex-col justify-between group hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                <span class="text-[10px] font-black uppercase tracking-widest text-amrita-ink/40 mb-4">Degree Program</span>
+                <select x-model="filters.program" @change="executeSearch()" class="appearance-none font-display font-medium text-lg text-amrita-ink bg-transparent focus:outline-none cursor-pointer w-full truncate">
                     <option value="All">All Programs</option>
-                    <template x-for="p in facets.programs" :key="p[0]">
+                    <template x-for="p in facetData.programs" :key="p[0]">
                         <option :value="p[0]" x-text="`${p[0]} (${p[1]})`"></option>
                     </template>
                 </select>
             </div>
 
-            <!-- Course Category Selector -->
-            <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-2 hover:border-[#A4123F]/30 transition-colors">
-                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <i class="fa-solid fa-tags text-[#A4123F]"></i> Category
-                </label>
-                <select x-model="selectedCategory" @change="fetchSearch()" class="w-full text-xs font-medium text-slate-800 bg-slate-50 rounded-lg p-2.5 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#A4123F]">
+            <!-- Bento Cell: Category -->
+            <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-black/5 flex flex-col justify-between group hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                <span class="text-[10px] font-black uppercase tracking-widest text-amrita-ink/40 mb-4">Course Category</span>
+                <select x-model="filters.category" @change="executeSearch()" class="appearance-none font-display font-medium text-lg text-amrita-ink bg-transparent focus:outline-none cursor-pointer w-full truncate">
                     <option value="All">All Categories</option>
-                    <template x-for="c in facets.categories" :key="c[0]">
+                    <template x-for="c in facetData.categories" :key="c[0]">
                         <option :value="c[0]" x-text="`${c[0]} (${c[1]})`"></option>
                     </template>
                 </select>
             </div>
 
-            <!-- Year Selector -->
-            <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-2 hover:border-[#A4123F]/30 transition-colors">
-                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <i class="fa-solid fa-calendar-days text-[#A4123F]"></i> Academic Year
-                </label>
-                <select x-model="selectedYear" @change="fetchSearch()" class="w-full text-xs font-medium text-slate-800 bg-slate-50 rounded-lg p-2.5 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#A4123F]">
-                    <option value="All">All Academic Years</option>
-                    <template x-for="y in facets.years" :key="y[0]">
+            <!-- Bento Cell: Year -->
+            <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-black/5 flex flex-col justify-between group hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                <span class="text-[10px] font-black uppercase tracking-widest text-amrita-ink/40 mb-4">Academic Year</span>
+                <select x-model="filters.year" @change="executeSearch()" class="appearance-none font-display font-medium text-lg text-amrita-ink bg-transparent focus:outline-none cursor-pointer w-full truncate">
+                    <option value="All">All Years</option>
+                    <template x-for="y in facetData.years" :key="y[0]">
                         <option :value="y[0]" x-text="`${y[0]} (${y[1]})`"></option>
                     </template>
                 </select>
             </div>
+
+        </div>
+    </section>
+
+    <!-- Document Retrieval Output -->
+    <section class="max-w-[1600px] mx-auto px-6 py-12 w-full min-h-[500px]">
+        
+        <!-- Loading State -->
+        <div x-show="isResolving" class="flex flex-col items-center justify-center py-24 text-amrita-ink/30" x-cloak>
+            <i class="fa-solid fa-circle-notch fa-spin text-3xl mb-4 text-amrita-maroon"></i>
+            <span class="font-display font-bold tracking-widest uppercase text-sm">Accessing Archive Data...</span>
         </div>
 
-        <!-- Loading State Spinner -->
-        <div x-show="loading" class="bg-white p-16 rounded-2xl border border-slate-200 text-center shadow-sm space-y-4">
-            <i class="fa-solid fa-circle-notch fa-spin text-[#A4123F] fa-3x"></i>
-            <p class="text-base font-semibold text-slate-700">Searching SQLite FTS5 Index...</p>
-        </div>
-
-        <!-- Paper Search Results Cards Grid -->
-        <div x-show="!loading && results.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <template x-for="paper in results" :key="paper.id">
-                <div class="group bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-xl hover:border-[#A4123F]/40 transition-all duration-300 flex flex-col justify-between overflow-hidden">
+        <!-- Populated Grid -->
+        <div x-show="!isResolving && searchHits.length > 0" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 auto-rows-max" id="results-grid" x-cloak>
+            <template x-for="item in searchHits" :key="item.id">
+                <div class="group relative bg-white border border-black/5 shadow-sm hover:shadow-2xl rounded-[2rem] p-8 transition-all duration-700 ease-custom overflow-hidden flex flex-col justify-between h-full cursor-pointer hover:-translate-y-2" @click="triggerPdfStudio(item)">
                     
-                    <!-- Paper Card Header & Details -->
-                    <div class="p-6 space-y-4">
-                        <div class="flex items-start justify-between gap-2">
-                            <span class="bg-[#FAF0F2] text-[#A4123F] font-mono font-bold text-xs px-3 py-1.5 rounded-lg border border-[#A4123F]/20" x-text="paper.course_code || 'CODE N/A'"></span>
-                            <span class="bg-amber-50 text-amber-800 border border-amber-200/60 font-semibold text-xs px-2.5 py-1 rounded-lg" x-text="paper.year"></span>
+                    <!-- Paper Top Section -->
+                    <div>
+                        <div class="flex items-center gap-3 mb-6">
+                            <span class="font-mono text-xs font-bold px-3 py-1 bg-amrita-paper rounded-lg text-amrita-ink border border-black/5" x-text="item.course_code"></span>
+                            <span class="font-sans font-bold text-[10px] uppercase tracking-widest text-amrita-ink/40" x-text="item.year"></span>
                         </div>
+                        <h2 class="font-display font-bold text-2xl leading-tight text-amrita-ink group-hover:text-amrita-maroon transition-colors mb-4 line-clamp-3" x-text="item.course_title"></h2>
+                    </div>
 
-                        <h3 class="font-display font-bold text-lg text-slate-900 group-hover:text-[#A4123F] transition-colors leading-snug line-clamp-2" x-text="paper.course_title"></h3>
-
-                        <!-- Metadata Badges -->
-                        <div class="space-y-2 text-xs text-slate-600 pt-2 border-t border-slate-100">
-                            <div class="flex items-center gap-2 truncate">
-                                <i class="fa-solid fa-building-columns text-slate-400 w-4"></i>
-                                <span class="truncate font-medium" x-text="paper.department"></span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <i class="fa-solid fa-graduation-cap text-slate-400 w-4"></i>
-                                <span class="font-medium" x-text="`${paper.program} • ${paper.semester}`"></span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <i class="fa-solid fa-file-signature text-slate-400 w-4"></i>
-                                <span class="font-medium" x-text="`${paper.exam_type} (${paper.course_category})`"></span>
-                            </div>
+                    <!-- Paper Bottom Section / Metadata -->
+                    <div class="mt-8 space-y-3 relative z-10">
+                        <div class="flex items-center gap-2 text-sm text-amrita-ink/60">
+                            <i class="fa-solid fa-building-columns text-amrita-ink/30 w-4"></i>
+                            <span class="truncate font-medium line-clamp-1" x-text="item.department"></span>
+                        </div>
+                        <div class="flex items-center gap-2 text-sm text-amrita-ink/60">
+                            <i class="fa-solid fa-graduation-cap text-amrita-ink/30 w-4"></i>
+                            <span class="truncate font-medium" x-text="`${item.program} • ${item.semester}`"></span>
                         </div>
                     </div>
 
-                    <!-- Paper Card Footer Actions -->
-                    <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
-                        <span class="text-[11px] font-mono text-slate-400 truncate max-w-[140px]" :title="paper.relative_path" x-text="paper.relative_path.split('/').pop()"></span>
-                        
-                        <div class="flex items-center space-x-2 shrink-0">
-                            <button @click="openPdfStudio(paper)" class="bg-[#A4123F] hover:bg-[#7D0D2F] text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition-all flex items-center gap-1.5">
-                                <i class="fa-solid fa-file-pdf"></i> Preview PDF
-                            </button>
-                            <a :href="`/api/pdf?path=${encodeURIComponent(paper.relative_path)}`" download class="bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-bold p-2 rounded-xl transition-all" title="Download PDF File">
-                                <i class="fa-solid fa-download"></i>
-                            </a>
-                        </div>
+                    <!-- Floating Action Button -->
+                    <div class="absolute bottom-6 right-6 w-12 h-12 bg-amrita-maroon text-white rounded-2xl flex items-center justify-center opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 ease-custom z-20 shadow-lg">
+                        <i class="fa-solid fa-eye text-lg"></i>
                     </div>
                 </div>
             </template>
         </div>
 
-        <!-- Empty Results View -->
-        <div x-show="!loading && results.length === 0" class="bg-white p-16 rounded-2xl border border-slate-200 text-center shadow-sm space-y-4">
-            <div class="w-16 h-16 bg-rose-50 text-[#A4123F] rounded-full flex items-center justify-center mx-auto text-2xl">
-                <i class="fa-solid fa-folder-open"></i>
+        <!-- Null State -->
+        <div x-show="!isResolving && searchHits.length === 0" class="flex flex-col items-center justify-center py-32 opacity-80" x-cloak>
+            <div class="w-20 h-20 bg-black/5 rounded-full flex items-center justify-center mb-6">
+                <i class="fa-regular fa-folder-open text-3xl text-amrita-ink/40"></i>
             </div>
-            <h3 class="font-display font-bold text-xl text-slate-900">No Exam Papers Found</h3>
-            <p class="text-sm text-slate-500 max-w-md mx-auto">Try checking your spelling, using course codes, or resetting your department and program filters.</p>
-            <button @click="resetFilters()" class="bg-[#A4123F] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm hover:bg-[#7D0D2F] transition-colors">Reset All Filters</button>
+            <h3 class="font-display font-bold text-3xl text-amrita-ink">No Documents Found</h3>
+            <p class="font-medium text-amrita-ink/60 mt-2 max-w-sm text-center">Refine your active filters or try an alternate search query to discover academic resources.</p>
         </div>
-    </main>
+    </section>
 
-    <!-- FULL PREMIUM PDF PREVIEW STUDIO MODAL -->
+    <!-- Minimal Footer -->
+    <footer class="mt-auto py-12 px-6 border-t border-black/5 flex flex-col md:flex-row items-center justify-between text-[10px] font-bold uppercase tracking-widest text-amrita-ink/40 z-10 bg-white">
+        <span>Amrita Vishwa Vidyapeetham</span>
+        <span class="mt-4 md:mt-0">Digital Database Infrastructure</span>
+    </footer>
+
+    <!-- AWWWARDS-GRADE PDF STUDIO MODAL -->
     <div x-show="activePdf" 
-         x-transition.opacity.duration.300ms
-         class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 md:p-6" 
+         x-transition:enter="transition ease-out duration-500"
+         x-transition:enter-start="opacity-0 backdrop-blur-none"
+         x-transition:enter-end="opacity-100 backdrop-blur-3xl"
+         x-transition:leave="transition ease-in duration-300"
+         x-transition:leave-start="opacity-100 backdrop-blur-3xl"
+         x-transition:leave-end="opacity-0 backdrop-blur-none"
+         class="fixed inset-0 z-[100] flex flex-col bg-amrita-ink/90 backdrop-blur-2xl" 
          style="display: none;">
         
-        <div class="bg-white w-full max-w-6xl h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200" @click.away="activePdf = null">
-            
-            <!-- PDF Studio Top Control Header -->
-            <div class="bg-[#A4123F] text-white px-6 py-4 flex items-center justify-between border-b-4 border-[#D4AF37] shrink-0">
-                <div class="flex items-center space-x-3 truncate mr-4">
-                    <div class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white shrink-0">
-                        <i class="fa-solid fa-file-pdf text-xl text-amber-300"></i>
-                    </div>
-                    <div class="truncate">
-                        <div class="flex items-center gap-2 truncate">
-                            <span class="bg-[#D4AF37] text-slate-950 font-mono font-bold text-xs px-2 py-0.5 rounded" x-text="activePdf ? activePdf.course_code : ''"></span>
-                            <h3 class="font-display font-bold text-base sm:text-lg text-white truncate" x-text="activePdf ? activePdf.course_title : ''"></h3>
-                        </div>
-                        <p class="text-xs text-rose-100 font-medium truncate mt-0.5" x-text="activePdf ? `${activePdf.department} • ${activePdf.program} • ${activePdf.year} ${activePdf.exam_type}` : ''"></p>
-                    </div>
+        <!-- Studio Header -->
+        <div class="h-20 sm:h-24 px-6 sm:px-12 flex items-center justify-between shrink-0 border-b border-white/10">
+            <div class="text-white flex flex-col max-w-[70%]">
+                <div class="flex items-center gap-3 mb-1">
+                    <span class="font-mono text-[10px] tracking-wider uppercase font-bold text-amrita-gold" x-text="activePdf ? activePdf.course_code : ''"></span>
+                    <span class="w-1 h-1 bg-white/20 rounded-full"></span>
+                    <span class="font-sans text-[10px] font-medium text-white/50" x-text="activePdf ? `${activePdf.program} • ${activePdf.year}` : ''"></span>
                 </div>
-
-                <!-- Control Buttons -->
-                <div class="flex items-center space-x-3 shrink-0">
-                    <a x-if="activePdf" :href="`/api/pdf?path=${encodeURIComponent(activePdf.relative_path)}`" download class="bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5">
-                        <i class="fa-solid fa-download"></i>
-                        <span class="hidden sm:inline">Download</span>
-                    </a>
-                    <button @click="activePdf = null" class="w-9 h-9 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center text-white font-bold transition-colors">
-                        <i class="fa-solid fa-xmark text-lg"></i>
-                    </button>
-                </div>
+                <h3 class="font-display font-bold text-lg sm:text-2xl truncate text-white" x-text="activePdf ? activePdf.course_title : ''"></h3>
             </div>
+            
+            <div class="flex items-center gap-3">
+                <a x-if="activePdf" :href="`/api/pdf?path=${encodeURIComponent(activePdf.relative_path)}`" download class="hidden sm:flex items-center gap-2 bg-white text-amrita-ink hover:bg-amrita-paper px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300">
+                    <i class="fa-solid fa-download"></i> Save Document
+                </a>
+                <button @click="activePdf = null" class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-white hover:bg-amrita-maroon transition-colors duration-300">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+        </div>
 
-            <!-- PDF Embed Viewer Container -->
-            <div class="flex-1 bg-slate-900 relative">
+        <!-- Studio Viewer Area -->
+        <div class="flex-1 w-full bg-[#030303] relative overflow-hidden flex items-center justify-center">
+            <div class="absolute inset-0 max-w-6xl mx-auto w-full h-full sm:py-6 sm:px-6">
                 <template x-if="activePdf">
-                    <iframe :src="`/api/pdf?path=${encodeURIComponent(activePdf.relative_path)}`" class="w-full h-full border-0"></iframe>
+                    <iframe :src="`/api/pdf?path=${encodeURIComponent(activePdf.relative_path)}`" class="w-full h-full border-0 sm:rounded-2xl shadow-2xl bg-white"></iframe>
                 </template>
-            </div>
-            
-            <!-- PDF Studio Bottom Quick Info Footer -->
-            <div class="bg-slate-50 border-t border-slate-200 px-6 py-2.5 flex items-center justify-between text-xs text-slate-500 font-mono">
-                <span class="truncate" x-text="activePdf ? `Path: ${activePdf.relative_path}` : ''"></span>
-                <span class="shrink-0 text-slate-700 font-semibold">Amrita DSpace Archive Stream</span>
             </div>
         </div>
     </div>
 
-    <!-- Academic Footer -->
-    <footer class="bg-slate-900 text-slate-400 text-xs py-8 border-t border-slate-800 mt-12">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div class="flex items-center space-x-3">
-                <div class="w-8 h-8 bg-[#A4123F] text-white rounded-lg flex items-center justify-center font-bold">A</div>
-                <span class="font-medium text-slate-300">Amrita Vishwa Vidyapeetham Exam Paper Repository</span>
-            </div>
-            <div class="font-mono text-slate-500 text-center sm:text-right">
-                19,600 Exam Papers Indexed | Pure Rust SQLite BM25 Engine
-            </div>
-        </div>
-    </footer>
-
-    <!-- Alpine.js Application Controller -->
+    <!-- Application Engine Logic -->
     <script>
-        function paperStudio() {
-            return {
-                query: '',
-                selectedDept: 'All',
-                selectedProgram: 'All',
-                selectedCategory: 'All',
-                selectedYear: 'All',
-                facets: { departments: [], programs: [], years: [], categories: [], total_papers: 0 },
-                results: [],
-                loading: false,
-                searchTime: null,
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('archiveEngine', () => ({
+                searchQuery: '',
+                filters: {
+                    department: 'All',
+                    program: 'All',
+                    category: 'All',
+                    year: 'All'
+                },
+                facetData: { departments: [], programs: [], years: [], categories: [] },
+                totalPapers: 0,
+                searchHits: [],
+                isResolving: true,
                 activePdf: null,
 
-                async init() {
-                    await this.fetchFacets();
-                    await this.fetchSearch();
+                init() {
+                    this.bootstrap();
+                    this.initGSAP();
                 },
 
-                async fetchFacets() {
+                async bootstrap() {
                     try {
-                        const res = await fetch('/api/facets');
-                        this.facets = await res.json();
-                    } catch (err) {
-                        console.error('Failed to load facets:', err);
+                        const facetRes = await fetch('/api/facets');
+                        const data = await facetRes.json();
+                        this.facetData = data;
+                        if(data.total_papers) this.totalPapers = data.total_papers;
+                    } catch (e) {
+                        console.error("Facet load failure:", e);
                     }
+                    await this.executeSearch();
                 },
 
-                async fetchSearch() {
-                    this.loading = true;
-                    const start = performance.now();
-                    const params = new URLSearchParams();
+                async executeSearch() {
+                    this.isResolving = true;
                     
-                    if (this.query.trim()) params.append('q', this.query.trim());
-                    if (this.selectedDept !== 'All') params.append('department', this.selectedDept);
-                    if (this.selectedProgram !== 'All') params.append('program', this.selectedProgram);
-                    if (this.selectedCategory !== 'All') params.append('category', this.selectedCategory);
-                    if (this.selectedYear !== 'All') params.append('year', this.selectedYear);
+                    const params = new URLSearchParams();
+                    if (this.searchQuery.trim()) params.append('q', this.searchQuery.trim());
+                    if (this.filters.department !== 'All') params.append('department', this.filters.department);
+                    if (this.filters.program !== 'All') params.append('program', this.filters.program);
+                    if (this.filters.category !== 'All') params.append('category', this.filters.category);
+                    if (this.filters.year !== 'All') params.append('year', this.filters.year);
 
                     try {
                         const res = await fetch(`/api/search?${params.toString()}`);
-                        this.results = await res.json();
-                        this.searchTime = (performance.now() - start).toFixed(1);
+                        if (!res.ok) throw new Error("Server returned " + res.status);
+                        this.searchHits = await res.json();
+                        
+                        // GSAP Stagger triggers upon data load
+                        this.$nextTick(() => {
+                            if(this.searchHits.length > 0) {
+                                gsap.fromTo("#results-grid > div", 
+                                    { y: 40, opacity: 0 }, 
+                                    { y: 0, opacity: 1, duration: 0.6, stagger: 0.04, ease: "power3.out", clearProps: "all" }
+                                );
+                            }
+                        });
+                        
                     } catch (err) {
-                        console.error('Search failed:', err);
+                        console.error('Retrieval failure:', err);
+                        this.searchHits = [];
                     } finally {
-                        this.loading = false;
+                        this.isResolving = false;
                     }
                 },
 
-                resetFilters() {
-                    this.query = '';
-                    this.selectedDept = 'All';
-                    this.selectedProgram = 'All';
-                    this.selectedCategory = 'All';
-                    this.selectedYear = 'All';
-                    this.fetchSearch();
+                triggerPdfStudio(documentData) {
+                    this.activePdf = documentData;
                 },
 
-                openPdfStudio(paper) {
-                    this.activePdf = paper;
+                initGSAP() {
+                    gsap.registerPlugin(ScrollTrigger);
+                    // Load Animation
+                    gsap.fromTo(".gsap-hero-reveal", 
+                        { y: 60, opacity: 0, filter: "blur(10px)" }, 
+                        { y: 0, opacity: 1, filter: "blur(0px)", duration: 1.2, ease: "expo.out" }
+                    );
                 }
-            }
-        }
+            }));
+        });
     </script>
 </body>
 </html>
