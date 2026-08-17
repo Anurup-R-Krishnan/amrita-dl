@@ -1,39 +1,37 @@
-# Multi-stage Dockerfile for Amrita Exam Papers Search Engine
-FROM rust:1-slim-bookworm AS builder
-
+# Multi-stage Dockerfile using cargo-chef for optimal layer caching
+FROM lukemathwalker/cargo-chef:latest-rust-1-bookworm AS chef
 WORKDIR /app
 
-# Copy manifest files
-COPY Cargo.toml Cargo.lock ./
+# Stage 1: Compute dependency recipe
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
-# Create dummy source to cache Rust dependency builds
-RUN mkdir -p src/bin && \
-    echo "fn main() {}" > src/main.rs && \
-    echo "fn main() {}" > src/bin/server.rs && \
-    cargo build --release && \
-    rm -rf src
+# Stage 2: Caching dependencies
+FROM chef AS builder
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
 
-# Copy real source code
-COPY src ./src
-COPY web ./web
+# Build actual application binary
+COPY . .
+RUN cargo build --release --bin server
 
-# Touch main files to invalidate cargo build cache for application code
-RUN touch src/main.rs src/bin/server.rs && cargo build --release --bin server
+# Stage 3: Minimal, secure production runtime
+FROM debian:bookworm-slim AS runtime
 
-# Runtime image
-FROM debian:bookworm-slim
-
-# Install runtime SSL certs and SQLite libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    libsqlite3-0 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Create unprivileged user for security
+RUN useradd -m -u 1000 -U appuser
 
 WORKDIR /app
 
 # Copy built release binary and web static assets
-COPY --from=builder /app/target/release/server /app/server
-COPY web /app/web
+COPY --from=builder --chown=appuser:appuser /app/target/release/server /app/server
+COPY --chown=appuser:appuser web /app/web
 
 # Default environment configuration
 ENV PORT=8080 \
@@ -41,6 +39,11 @@ ENV PORT=8080 \
     INDEXED_ROOT=/app/data/amrita-exam-papers-indexed \
     RAW_ROOT=/app/data/amrita-exam-papers
 
+USER appuser
+
 EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8080/api/health || exit 1
 
 CMD ["/app/server"]
