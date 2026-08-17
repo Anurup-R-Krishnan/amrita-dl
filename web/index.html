@@ -15,14 +15,18 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
-    <!-- Tailwind CSS CDN -->
+    <!-- Suppress Tailwind CDN production notice & Apollo dev warnings -->
     <script>
         (function() {
-            const warn = console.warn;
-            console.warn = function(...args) {
-                if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com should not be used in production')) return;
-                warn.apply(console, args);
-            };
+            const blockTerms = ['cdn.tailwindcss.com should not be used in production', 'ApolloClient', 'Apollo DevTools'];
+            ['warn', 'error', 'info', 'log'].forEach(method => {
+                const orig = console[method];
+                console[method] = function(...args) {
+                    const msg = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
+                    if (blockTerms.some(term => msg.includes(term))) return;
+                    if (orig) orig.apply(console, args);
+                };
+            });
         })();
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -431,35 +435,38 @@
         </div>
     </div>
 
-    <!-- Official Amrita Brand Footer -->
-    <footer class="bg-gray-950 text-gray-400 text-xs border-t border-gray-800/80 mt-20 pt-12 pb-8">
+    <!-- Official Amrita Brand Footer (White & Maroon) -->
+    <footer class="bg-white text-gray-700 text-xs border-t-2 border-amrita-maroon mt-20 pt-12 pb-8 shadow-inner">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-8 border-b border-gray-800/60 pb-10">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-8 border-b border-gray-200 pb-10">
                 <!-- Column 1: Brand & Institution Info -->
                 <div class="md:col-span-5 space-y-4">
                     <div class="flex items-center space-x-3">
-                        <div class="w-8 h-8 bg-amrita-maroon text-white rounded-lg flex items-center justify-center font-black text-sm shadow-md border border-amrita-gold/30">A</div>
-                        <span class="font-extrabold text-sm text-white tracking-tight">Amrita Vishwa Vidyapeetham</span>
+                        <div class="w-9 h-9 bg-amrita-maroon text-white rounded-lg flex items-center justify-center font-extrabold text-base shadow-md">A</div>
+                        <div class="flex flex-col">
+                            <span class="font-extrabold text-sm text-amrita-maroon uppercase tracking-tight leading-none">AMRITA</span>
+                            <span class="font-bold text-[10px] tracking-widest text-gray-700 uppercase mt-0.5">VISHWA VIDYAPEETHAM</span>
+                        </div>
                     </div>
-                    <p class="text-xs text-gray-400 leading-relaxed max-w-sm font-medium">
+                    <p class="text-xs text-gray-600 leading-relaxed max-w-sm font-medium">
                         Centralized Examination Question Paper Repository & Academic Resource Center.
                     </p>
                 </div>
 
                 <!-- Column 2: Quick Links -->
                 <div class="md:col-span-3 space-y-2.5">
-                    <h4 class="font-extrabold text-xs uppercase tracking-wider text-gray-200">Archive Navigation</h4>
+                    <h4 class="font-extrabold text-xs uppercase tracking-wider text-amrita-maroon">Archive Navigation</h4>
                     <ul class="space-y-2 text-xs font-semibold">
-                        <li><a href="#filters" class="hover:text-amrita-gold transition-colors">Department Taxonomy</a></li>
-                        <li><a href="#filters" class="hover:text-amrita-gold transition-colors">Degree Programs</a></li>
-                        <li><a href="#archive" class="hover:text-amrita-gold transition-colors">Recent Papers</a></li>
+                        <li><a href="#filters" class="hover:text-amrita-maroon transition-colors flex items-center gap-1.5"><i class="fa-solid fa-chevron-right text-[9px] text-amrita-maroon"></i> Department Taxonomy</a></li>
+                        <li><a href="#filters" class="hover:text-amrita-maroon transition-colors flex items-center gap-1.5"><i class="fa-solid fa-chevron-right text-[9px] text-amrita-maroon"></i> Degree Programs</a></li>
+                        <li><a href="#archive" class="hover:text-amrita-maroon transition-colors flex items-center gap-1.5"><i class="fa-solid fa-chevron-right text-[9px] text-amrita-maroon"></i> Recent Papers</a></li>
                     </ul>
                 </div>
 
                 <!-- Column 3: Institutional Information -->
                 <div class="md:col-span-4 space-y-2.5">
-                    <h4 class="font-extrabold text-xs uppercase tracking-wider text-gray-200">Institutional Notice</h4>
-                    <p class="text-[11px] text-gray-500 leading-relaxed font-medium">
+                    <h4 class="font-extrabold text-xs uppercase tracking-wider text-amrita-maroon">Institutional Notice</h4>
+                    <p class="text-[11px] text-gray-600 leading-relaxed font-medium bg-amrita-light/60 p-3 rounded-lg border border-amrita-maroon/15">
                         Maintained for academic review and student preparation across all campuses. All paper copyrights belong to Amrita Vishwa Vidyapeetham.
                     </p>
                 </div>
@@ -467,11 +474,11 @@
 
             <!-- Footer Bottom Bar -->
             <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-                <div class="flex items-center space-x-2 text-gray-500 text-[11px]">
-                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                <div class="flex items-center space-x-2 text-gray-600 text-[11px] font-semibold">
+                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm"></span>
                     <span>System Active & Verified</span>
                 </div>
-                <div class="font-mono text-gray-500 text-center sm:text-right text-[11px]" x-text="`© ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham. All rights reserved.`">
+                <div class="font-mono text-amrita-maroon font-bold text-center sm:text-right text-[11px]" x-text="`© ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham. All rights reserved.`">
                     © 2026 Amrita Vishwa Vidyapeetham. All rights reserved.
                 </div>
             </div>
