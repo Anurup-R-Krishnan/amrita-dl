@@ -181,32 +181,106 @@ fn format_exam_type(exam: &str) -> String {
 
 fn sanitize_title(title: &str, code: &str) -> String {
     let mut t = title.trim().to_string();
+
+    // Strip trailing .pdf extension
     if t.ends_with(".pdf") || t.ends_with(".PDF") {
-        t = t[..t.len() - 4].to_string();
+        t = t[..t.len() - 4].trim().to_string();
     }
+
+    // Strip everything from first underscore (filename metadata starts there)
     if let Some(pos) = t.find('_') {
         t = t[..pos].trim().to_string();
     }
-    if t.eq_ignore_ascii_case(code) || t.is_empty() {
-        t = format!("{code} Examination Paper");
+
+    // Strip leading slashes and course code patterns (e.g. "/ 21TAM101/ 21TAM102 TAMIL I")
+    while t.starts_with('/') || t.starts_with(" /") {
+        t = t.trim_start_matches('/').trim().to_string();
     }
 
-    // Title Case normalization: capitalize first letter of each word
+    // Remove embedded course code patterns like "21TAM101" from the title
+    let re_code = regex::Regex::new(r"(?i)\b\d{2}[A-Z]{2,6}\d{3,4}\b").unwrap();
+    t = re_code.replace_all(&t, "").trim().to_string();
+
+    // Collapse multiple slashes/slashes-with-spaces
+    t = t.replace("/ ", " ").trim().to_string();
+
+    // Detect garbage titles (PDF content leaked through extraction)
+    let garbage_markers = ["[CO-", "[BL-", "mod 19", "LFSR", "CO-1]", "BL-2]", "(2", "shifted from", "and the second"];
+    let is_garbage = garbage_markers.iter().any(|m| t.contains(m))
+        || t.starts_with("of ")
+        || t.starts_with("with ")
+        || t.starts_with(", ")
+        || t.starts_with("0000")
+        || t.eq_ignore_ascii_case(code)
+        || t.starts_with("(")
+        || t.is_empty()
+        // Titles that are just numbers are garbage
+        || t.chars().all(|c| c.is_ascii_digit() || c.is_ascii_whitespace());
+
+    if is_garbage {
+        // Fallback: generate title from course code
+        // Sanitize the code itself if it's garbage too
+        let clean_code = if code.contains(' ') || code.contains(',') || code.len() < 3 {
+            "AMRITA".to_string()
+        } else {
+            code.to_string()
+        };
+        return format!("{clean_code} Examination Paper");
+    }
+
+    // Title Case normalization with Roman numeral and all-caps preservation
     let small_words = ["and", "or", "of", "the", "in", "for", "a", "an", "to", "on", "at", "by", "with", "from"];
+
     let words: Vec<String> = t.split_whitespace().enumerate().map(|(i, w)| {
         let lower = w.to_lowercase();
+
+        // Check if it's a Roman numeral (case-insensitive) - preserve as uppercase
+        let roman_numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+        if roman_numerals.iter().any(|r| r.eq_ignore_ascii_case(&lower)) && w.chars().all(|c| c.is_ascii_alphabetic()) {
+            return w.to_uppercase();
+        }
+
+        // Preserve genuine acronyms (2-4 uppercase letters, not a small word)
+        if i > 0 && w.len() >= 2 && w.len() <= 4
+            && w.chars().all(|c| c.is_uppercase())
+            && w.chars().any(|c| c.is_alphabetic())
+            && !small_words.contains(&lower.as_str())
+        {
+            return w.to_string();
+        }
+        // First word: also preserve acronyms
+        if i == 0 && w.len() >= 2 && w.len() <= 4
+            && w.chars().all(|c| c.is_uppercase())
+            && w.chars().any(|c| c.is_alphabetic())
+            && !small_words.contains(&lower.as_str())
+        {
+            return w.to_string();
+        }
+
+        // Small words after the first word stay lowercase
         if i > 0 && small_words.contains(&lower.as_str()) {
-            lower
-        } else {
-            let mut chars = lower.chars();
-            match chars.next() {
-                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-                None => String::new(),
-            }
+            return lower;
+        }
+
+        // Normal Title Case: capitalize first letter
+        let mut chars = lower.chars();
+        match chars.next() {
+            Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+            None => String::new(),
         }
     }).collect();
-    t = words.join(" ");
-    t
+
+    let result = words.join(" ");
+    if result.is_empty() || result.eq_ignore_ascii_case(code) {
+        let clean_code = if code.contains(' ') || code.contains(',') || code.len() < 3 {
+            "AMRITA".to_string()
+        } else {
+            code.to_string()
+        };
+        format!("{clean_code} Examination Paper")
+    } else {
+        result
+    }
 }
 
 fn format_level(level: &str) -> String {
