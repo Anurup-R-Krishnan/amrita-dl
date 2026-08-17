@@ -25,11 +25,11 @@ use sha2::{Digest, Sha256};
 #[command(name = "amrita-index", about = "Layout-aware indexer & restructurer for Amrita Exam Papers", version)]
 struct Args {
     /// Root directory of raw downloads
-    #[arg(long, default_value = "/run/media/anuruprkris/DATA/amrita-exam-papers")]
+    #[arg(long, default_value = "./amrita-exam-papers")]
     src: PathBuf,
 
     /// Destination root directory for indexed library
-    #[arg(long, default_value = "/run/media/anuruprkris/DATA/amrita-exam-papers-indexed")]
+    #[arg(long, default_value = "./amrita-exam-papers-indexed")]
     dest: PathBuf,
 
     /// Dry run mode: output rename_proposal.csv without creating/copying files
@@ -602,7 +602,7 @@ sqlite3 index.db "SELECT course_code, course_title, department FROM papers_fts W
 
 ### 2. Search by Course Title or Code using `rga` (ripgrep-all):
 ```bash
-rga "Digital Signal Processing" /run/media/anuruprkris/DATA/amrita-exam-papers-indexed/
+rga "Digital Signal Processing" ./amrita-exam-papers-indexed/
 ```
 
 ### 3. Interactive Terminal Filtering using `fzf`:

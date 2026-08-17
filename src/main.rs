@@ -47,7 +47,7 @@ const PDF_MAGIC:   &[u8] = b"%PDF";
 #[command(name = "amrita-dl", about = "Download Amrita exam papers — hardened", version)]
 struct Args {
     /// Root download directory
-    #[arg(long, default_value = "/run/media/anuruprkris/DATA/amrita-exam-papers")]
+    #[arg(long, default_value = "./amrita-exam-papers")]
     dest: PathBuf,
 
     /// Parallel download workers

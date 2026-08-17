@@ -510,18 +510,17 @@ async fn handle_search(
     let rows = stmt
         .query_map(rusqlite_params.as_slice(), |row| {
             let orig_path: String = row.get(10)?;
-            let rel = if let Some(pos) = orig_path.find("Examination  Papers/") {
+            let orig_p = std::path::Path::new(&orig_path);
+            let rel = if let Ok(stripped) = orig_p.strip_prefix(&state.raw_root) {
+                stripped.to_string_lossy().to_string()
+            } else if let Ok(stripped) = orig_p.strip_prefix(&state.indexed_root) {
+                stripped.to_string_lossy().to_string()
+            } else if let Some(pos) = orig_path.find("Examination  Papers/") {
                 orig_path[pos..].to_string()
             } else if let Some(pos) = orig_path.find("Examination Papers/") {
                 orig_path[pos..].to_string()
-            } else if let Some(pos) = orig_path.find("amrita-exam-papers/") {
-                orig_path[pos + "amrita-exam-papers/".len()..].to_string()
             } else {
-                orig_path
-                    .strip_prefix(state.indexed_root.to_str().unwrap_or_default())
-                    .unwrap_or(&orig_path)
-                    .trim_start_matches('/')
-                    .to_string()
+                orig_path.trim_start_matches('/').to_string()
             };
 
             let code: String = row.get(1)?;
@@ -694,6 +693,47 @@ async fn handle_suggest(
     Ok(Json(suggestions))
 }
 
+fn resolve_pdf_path(rel_path: &str, state: &AppState) -> Option<PathBuf> {
+    if rel_path.contains("..") || rel_path.contains("\\..") {
+        return None;
+    }
+
+    let decoded = urlencoding::decode(rel_path).unwrap_or(std::borrow::Cow::Borrowed(rel_path));
+    let path_str = decoded.trim();
+    let rel_clean = path_str.trim_start_matches('/');
+
+    let candidates = [
+        PathBuf::from(path_str),
+        PathBuf::from(rel_clean),
+        state.raw_root.join(rel_clean),
+        state.indexed_root.join(rel_clean),
+        state.raw_root.join(path_str),
+        state.indexed_root.join(path_str),
+    ];
+
+    let raw_canonical = state.raw_root.canonicalize().ok();
+    let indexed_canonical = state.indexed_root.canonicalize().ok();
+
+    for candidate in &candidates {
+        if candidate.exists() {
+            if let Ok(canonical) = candidate.canonicalize() {
+                let is_allowed = match (&raw_canonical, &indexed_canonical) {
+                    (Some(raw), Some(idx)) => canonical.starts_with(raw) || canonical.starts_with(idx),
+                    (Some(raw), None) => canonical.starts_with(raw),
+                    (None, Some(idx)) => canonical.starts_with(idx),
+                    (None, None) => true,
+                };
+
+                if is_allowed && canonical.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) == Some("pdf".to_string()) {
+                    return Some(canonical);
+                }
+            }
+        }
+    }
+
+    None
+}
+
 async fn handle_pdf(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>,
@@ -703,43 +743,10 @@ async fn handle_pdf(
         None => return (StatusCode::BAD_REQUEST, "Missing path parameter").into_response(),
     };
 
-    // Sanitize path against directory traversal attacks
-    if rel_path.contains("..") || rel_path.contains("\\..") {
-        return (StatusCode::FORBIDDEN, "Access Denied: Path Traversal Detected").into_response();
-    }
-
-    let path_str = if rel_path.starts_with('/') {
-        rel_path.to_string()
-    } else {
-        format!("/{rel_path}")
+    let canonical = match resolve_pdf_path(rel_path, &state) {
+        Some(p) => p,
+        None => return (StatusCode::NOT_FOUND, "PDF File Not Found").into_response(),
     };
-
-    let rel_clean = rel_path.trim_start_matches('/');
-
-    let full_path = if std::path::Path::new(&path_str).exists() {
-        PathBuf::from(&path_str)
-    } else if std::path::Path::new(rel_path).exists() {
-        PathBuf::from(rel_path)
-    } else if state.raw_root.join(rel_clean).exists() {
-        state.raw_root.join(rel_clean)
-    } else {
-        state.indexed_root.join(rel_clean)
-    };
-
-    let canonical = match full_path.canonicalize() {
-        Ok(p) => p,
-        Err(_) => return (StatusCode::NOT_FOUND, "PDF File Not Found").into_response(),
-    };
-
-    let raw_canonical = state.raw_root.canonicalize().unwrap_or_else(|_| state.raw_root.clone());
-    let indexed_canonical = state.indexed_root.canonicalize().unwrap_or_else(|_| state.indexed_root.clone());
-    if !canonical.starts_with(&raw_canonical) && !canonical.starts_with(&indexed_canonical) {
-        return (StatusCode::FORBIDDEN, "Access Denied: Path outside allowed roots").into_response();
-    }
-
-    if canonical.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) != Some("pdf".to_string()) {
-        return (StatusCode::FORBIDDEN, "Access Denied: Only PDF files can be served").into_response();
-    }
 
     match tokio_fs::read(&canonical).await {
         Ok(bytes) => {
@@ -795,8 +802,6 @@ async fn handle_batch_download(
         return (StatusCode::BAD_REQUEST, "Invalid number of paths (1-50 allowed)").into_response();
     }
 
-    let raw_canonical = state.raw_root.canonicalize().unwrap_or_else(|_| state.raw_root.clone());
-
     let mut zip_buf = Vec::new();
     {
         let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut zip_buf));
@@ -804,30 +809,17 @@ async fn handle_batch_download(
             .compression_method(zip::CompressionMethod::Stored);
 
         for rel_path in &req.paths {
-            if rel_path.contains("..") || rel_path.contains("\\..") {
-                continue;
-            }
-            let rel_clean = rel_path.trim_start_matches('/');
-            let candidate = state.raw_root.join(rel_clean);
-            let canonical = match candidate.canonicalize() {
-                Ok(p) => p,
-                Err(_) => continue,
-            };
-            if !canonical.starts_with(&raw_canonical) {
-                continue;
-            }
-            if canonical.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) != Some("pdf".to_string()) {
-                continue;
-            }
-            let filename = canonical
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("document.pdf");
+            if let Some(canonical) = resolve_pdf_path(rel_path, &state) {
+                let filename = canonical
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("document.pdf");
 
-            if let Ok(bytes) = std::fs::read(&canonical) {
-                if zip.start_file(filename, zip_opts).is_ok() {
-                    use std::io::Write;
-                    let _ = zip.write_all(&bytes);
+                if let Ok(bytes) = std::fs::read(&canonical) {
+                    if zip.start_file(filename, zip_opts).is_ok() {
+                        use std::io::Write;
+                        let _ = zip.write_all(&bytes);
+                    }
                 }
             }
         }
@@ -855,11 +847,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let raw_root = PathBuf::from(std::env::var("RAW_ROOT").unwrap_or_else(|_| "/run/media/anuruprkris/DATA/amrita-exam-papers".to_string()));
-    let indexed_root = PathBuf::from(std::env::var("INDEXED_ROOT").unwrap_or_else(|_| "/run/media/anuruprkris/DATA/amrita-exam-papers-indexed".to_string()));
+    let raw_root = PathBuf::from(std::env::var("RAW_ROOT").unwrap_or_else(|_| "./amrita-exam-papers".to_string()));
+    let indexed_root = PathBuf::from(std::env::var("INDEXED_ROOT").unwrap_or_else(|_| "./amrita-exam-papers-indexed".to_string()));
     let db_path = std::env::var("INDEX_DB")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| indexed_root.join("index.db"));
+        .unwrap_or_else(|_| {
+            if PathBuf::from("./index.db").exists() {
+                PathBuf::from("./index.db")
+            } else {
+                indexed_root.join("index.db")
+            }
+        });
 
     if !db_path.exists() {
         eprintln!("Error: index.db not found at {}", db_path.display());
@@ -908,8 +906,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ))
         .with_state(shared_state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-    info!("🚀 Amrita Exam Papers Search Server listening on http://localhost:8080");
+    let port: u16 = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(8080);
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    info!("🚀 Amrita Exam Papers Search Server listening on http://0.0.0.0:{port}");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
