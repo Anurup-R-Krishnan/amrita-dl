@@ -1,0 +1,6 @@
+name = "amrita-papers-frontend"
+pages_build_output_dir = "web"
+compatibility_date = "2026-08-18"
+
+[vars]
+ENVIRONMENT = "production"

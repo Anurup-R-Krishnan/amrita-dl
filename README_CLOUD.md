@@ -4,14 +4,32 @@ This guide details how to host the Amrita Exam Papers Search Engine completely f
 
 ---
 
-## Recommended Stack (100% Free Forever)
+## ⚡ Recommended Stack: Cloudflare Pages + Render + Backblaze B2 (100% Free)
 
 | Component | Service | Cost | Function |
 | :--- | :--- | :--- | :--- |
-| **Compute & Storage** | Oracle Cloud (OCI) Always Free | $0.00 / mo | 4 ARM Ampere Cores, 24 GB RAM, 200 GB Storage |
-| **Domain & DNS** | Cloudflare Free Tier | $0.00 / mo | Free SSL, DNS routing, Edge CDN |
-| **HTTPS Tunnel** | Cloudflare Tunnels (`cloudflared`) | $0.00 / mo | Zero open inbound ports, instant HTTPS |
-| **Health Monitoring** | UptimeRobot / Better Stack | $0.00 / mo | Free 5-minute HTTP uptime monitor |
+| **Frontend SPA** | Cloudflare Pages | **$0.00 / mo** | Global edge network hosting for `web/index.html` (<15ms latency) |
+| **Backend Search Engine** | Render.com (Docker) | **$0.00 / mo** | Native Rust Axum backend + SQLite FTS5 search (<15MB RAM footprint) |
+| **PDF Object Storage** | Backblaze B2 | **$0.00 / mo** | 10 GB free cloud storage for 19,600+ PDF question papers |
+| **Bandwidth (Egress)** | Cloudflare CDN | **$0.00 / mo** | Zero-cost egress via Cloudflare-Backblaze Bandwidth Alliance |
+| **Keep-Alive Monitor** | UptimeRobot | **$0.00 / mo** | Pings `/api/health` every 5 mins to prevent Render cold starts |
+
+### Architecture Flow & Low-Latency Routing
+
+```
+[ User Browser ]
+       │
+       ├─────────────────────────┐
+       │ 1. Static SPA (<15ms)   │ 2. Search API (/api/*)
+       v                         v
+[ Cloudflare Pages Edge ]     [ Render Web Service ]
+(275+ Edge Data Centers)      (Rust Axum Engine + SQLite FTS5)
+                                 │
+                                 │ 3. 302 Redirect to B2 CDN
+                                 v
+                              [ Cloudflare Proxied B2 CDN ]
+                              (papers-cdn.yourdomain.com)
+```
 
 ---
 

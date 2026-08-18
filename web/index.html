@@ -698,11 +698,20 @@
                     this.executeSearch();
                 },
 
+                getApiBase() {
+                    if (window.AMRITA_API_BASE) return window.AMRITA_API_BASE.replace(/\/+$/, '');
+                    return '';
+                },
+
+                pdfUrl(path) {
+                    return `${this.getApiBase()}/api/pdf?path=${encodeURIComponent(path || '')}`;
+                },
+
                 async downloadBatch() {
                     if (this.selectedPaths.length === 0) return;
                     this.isBatching = true;
                     try {
-                        const res = await fetch('/api/download-batch', {
+                        const res = await fetch(`${this.getApiBase()}/api/download-batch`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ paths: this.selectedPaths }),
@@ -727,7 +736,7 @@
 
                 async fetchFacets() {
                     try {
-                        const res = await fetch('/api/facets');
+                        const res = await fetch(`${this.getApiBase()}/api/facets`);
                         const data = await res.json();
                         this.facetData = data;
                         if (data.total_papers) this.totalPapers = data.total_papers;
@@ -742,7 +751,7 @@
                         return;
                     }
                     try {
-                        const res = await fetch(`/api/suggest?q=${encodeURIComponent(this.searchQuery.trim())}`);
+                        const res = await fetch(`${this.getApiBase()}/api/suggest?q=${encodeURIComponent(this.searchQuery.trim())}`);
                         this.suggestions = await res.json();
                         this.suggestIdx = -1;
                     } catch (e) {
@@ -791,7 +800,7 @@
                     params.append('offset', (this.page - 1) * this.pageSize);
 
                     try {
-                        const res = await fetch(`/api/search?${params.toString()}`);
+                        const res = await fetch(`${this.getApiBase()}/api/search?${params.toString()}`);
                         if (!res.ok) throw new Error("HTTP " + res.status);
                         const data = await res.json();
                         this.searchHits = data.results || [];

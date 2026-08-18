@@ -1,0 +1,3 @@
+# Cloudflare Pages Proxy Redirects
+# Proxy API calls directly to Render backend while bypassing edge cache
+/api/* https://amrita-papers.onrender.com/api/:splat 200!
