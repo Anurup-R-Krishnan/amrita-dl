@@ -777,13 +777,13 @@ async fn handle_pdf(
         let decoded = urlencoding::decode(rel_path).unwrap_or(std::borrow::Cow::Borrowed(rel_path));
         let path_str = decoded.trim().trim_start_matches('/');
         
-        let encoded_path: String = path_str
-            .split('/')
-            .map(|segment| urlencoding::encode(segment).to_string())
-            .collect::<Vec<_>>()
-            .join("/");
+        let filename = std::path::Path::new(path_str)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(path_str);
 
-        let redirect_url = format!("{clean_b2_base}/{encoded_path}");
+        let encoded_filename = urlencoding::encode(filename).to_string();
+        let redirect_url = format!("{clean_b2_base}/{encoded_filename}");
         if let Ok(header_val) = header::HeaderValue::from_str(&redirect_url) {
             let mut headers = HeaderMap::new();
             headers.insert(header::LOCATION, header_val);
