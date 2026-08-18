@@ -614,7 +614,7 @@ async fn handle_facets(
         *progs_map.entry(clean_p).or_insert(0) += count;
     }
     let mut progs: Vec<(String, usize)> = progs_map.into_iter().collect();
-    progs.sort_by(|a, b| b.1.cmp(&a.1));
+    progs.sort_by_key(|b| std::cmp::Reverse(b.1));
 
     // Years restricted dynamically using system clock (1990 to current_year + 1)
     let max_year = get_current_year() + 1;

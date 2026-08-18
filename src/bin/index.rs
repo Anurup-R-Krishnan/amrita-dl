@@ -64,9 +64,7 @@ fn get_current_year() -> i32 {
 }
 
 fn sanitize_text(s: &str) -> String {
-    s.replace('\t', " ")
-        .replace('\n', " ")
-        .replace('\r', " ")
+    s.replace(['\t', '\n', '\r'], " ")
         .trim()
         .to_string()
 }

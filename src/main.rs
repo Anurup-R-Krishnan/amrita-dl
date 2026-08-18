@@ -420,6 +420,7 @@ async fn extract_bitstreams(client: &HttpClient, item_handle: &str) -> Vec<Bitst
 
 // ── File download (all QoS guards applied) ────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 async fn download_file(
     client:     &HttpClient,
     url:        &str,
@@ -703,10 +704,8 @@ async fn main() -> Result<()> {
 
                 // QoS #1: periodic drive-health probe (every ~50 files)
                 let done = bytes_done.load(Ordering::Relaxed);
-                if done % (50 * 500_000) < 500_000 {
-                    if check_drive(&dest_root).await.is_err() {
-                        drive_ok.store(false, Ordering::Relaxed);
-                    }
+                if done % (50 * 500_000) < 500_000 && check_drive(&dest_root).await.is_err() {
+                    drive_ok.store(false, Ordering::Relaxed);
                 }
             }
         })
