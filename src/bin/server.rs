@@ -37,6 +37,7 @@ struct AppState {
     db_pool: Pool<SqliteConnectionManager>,
     indexed_root: PathBuf,
     raw_root: PathBuf,
+    b2_public_url: Option<String>,
     facet_cache: Arc<RwLock<Option<FacetResponse>>>,
 }
 
@@ -767,6 +768,16 @@ async fn handle_pdf(
         None => return (StatusCode::BAD_REQUEST, "Missing path parameter").into_response(),
     };
 
+    if let Some(ref b2_base) = state.b2_public_url {
+        let clean_b2_base = b2_base.trim_end_matches('/');
+        let clean_rel = rel_path.trim_start_matches('/');
+        let redirect_url = format!("{clean_b2_base}/{clean_rel}");
+        let mut headers = HeaderMap::new();
+        headers.insert(header::LOCATION, redirect_url.parse().unwrap());
+        headers.insert(header::CACHE_CONTROL, "public, max-age=86400".parse().unwrap());
+        return (StatusCode::FOUND, headers, ()).into_response();
+    }
+
     let canonical = match resolve_pdf_path(rel_path, &state) {
         Some(p) => p,
         None => return (StatusCode::NOT_FOUND, "PDF File Not Found").into_response(),
@@ -902,10 +913,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             e
         })?;
 
+    let b2_public_url = std::env::var("B2_PUBLIC_URL").ok();
+    if let Some(ref url) = b2_public_url {
+        info!("Backblaze B2 CDN redirect enabled: {url}");
+    }
+
     let shared_state = Arc::new(AppState {
         db_pool,
         indexed_root,
         raw_root,
+        b2_public_url,
         facet_cache: Arc::new(RwLock::new(None)),
     });
 
