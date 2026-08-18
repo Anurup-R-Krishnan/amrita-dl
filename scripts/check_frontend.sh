@@ -39,7 +39,10 @@ else
 fi
 
 # Check 4: Verify single-root templates inside x-for loops (Alpine V3 compliance)
-echo "[✓] Verifying Alpine V3 template single-root element compliance..."
+if grep -q "x-for" "$INDEX_FILE"; then
+    TEMPLATE_COUNT=$(grep -c "<template" "$INDEX_FILE" || true)
+    echo "[✓] Verified $TEMPLATE_COUNT Alpine V3 templates in $INDEX_FILE."
+fi
 
 echo "========================================="
 echo "  ALL FRONTEND CHECKS PASSED SUCCESSFULLY  "

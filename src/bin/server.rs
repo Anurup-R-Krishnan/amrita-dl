@@ -768,14 +768,28 @@ async fn handle_pdf(
         None => return (StatusCode::BAD_REQUEST, "Missing path parameter").into_response(),
     };
 
+    if rel_path.contains("..") || rel_path.contains("\\..") {
+        return (StatusCode::BAD_REQUEST, "Invalid path parameter").into_response();
+    }
+
     if let Some(ref b2_base) = state.b2_public_url {
         let clean_b2_base = b2_base.trim_end_matches('/');
-        let clean_rel = rel_path.trim_start_matches('/');
-        let redirect_url = format!("{clean_b2_base}/{clean_rel}");
-        let mut headers = HeaderMap::new();
-        headers.insert(header::LOCATION, redirect_url.parse().unwrap());
-        headers.insert(header::CACHE_CONTROL, "public, max-age=86400".parse().unwrap());
-        return (StatusCode::FOUND, headers, ()).into_response();
+        let decoded = urlencoding::decode(rel_path).unwrap_or(std::borrow::Cow::Borrowed(rel_path));
+        let path_str = decoded.trim().trim_start_matches('/');
+        
+        let encoded_path: String = path_str
+            .split('/')
+            .map(|segment| urlencoding::encode(segment).to_string())
+            .collect::<Vec<_>>()
+            .join("/");
+
+        let redirect_url = format!("{clean_b2_base}/{encoded_path}");
+        if let Ok(header_val) = header::HeaderValue::from_str(&redirect_url) {
+            let mut headers = HeaderMap::new();
+            headers.insert(header::LOCATION, header_val);
+            headers.insert(header::CACHE_CONTROL, "public, max-age=86400".parse().unwrap());
+            return (StatusCode::FOUND, headers, ()).into_response();
+        }
     }
 
     let canonical = match resolve_pdf_path(rel_path, &state) {

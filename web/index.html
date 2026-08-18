@@ -411,7 +411,7 @@
                                 <i class="fa-solid fa-eye text-[11px]"></i> View
                             </button>
                             <div class="w-px h-7 bg-amrita-maroon/20"></div>
-                            <a :href="`/api/pdf?path=${encodeURIComponent(item.relative_path)}`" download :download="item.relative_path.split('/').pop()" aria-label="Download PDF" class="bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold p-1.5 transition-colors" title="Download">
+                            <a :href="pdfUrl(item.relative_path)" download :download="item.relative_path.split('/').pop()" aria-label="Download PDF" class="bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold p-1.5 transition-colors" title="Download">
                                 <i class="fa-solid fa-download"></i>
                             </a>
                         </div>
@@ -449,7 +449,7 @@
                         <button @click="openPdfModal(item)" aria-label="View PDF" class="border border-amrita-maroon/30 bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
                             <i class="fa-solid fa-eye text-[11px]"></i> View
                         </button>
-                        <a :href="`/api/pdf?path=${encodeURIComponent(item.relative_path)}`" download :download="item.relative_path.split('/').pop()" aria-label="Download PDF" class="border border-amrita-maroon/30 bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold p-1.5 rounded-lg transition-colors" title="Download">
+                        <a :href="pdfUrl(item.relative_path)" download :download="item.relative_path.split('/').pop()" aria-label="Download PDF" class="border border-amrita-maroon/30 bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold p-1.5 rounded-lg transition-colors" title="Download">
                             <i class="fa-solid fa-download"></i>
                         </a>
                     </div>
@@ -558,7 +558,7 @@
                 </div>
                 <div class="flex items-center space-x-3 shrink-0">
                     <template x-if="activePdf">
-                        <a :href="`/api/pdf?path=${encodeURIComponent(activePdf ? activePdf.relative_path : '')}`" download aria-label="Download PDF from modal" class="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/20 transition-colors flex items-center gap-1.5">
+                        <a :href="pdfUrl(activePdf ? activePdf.relative_path : '')" download aria-label="Download PDF from modal" class="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/20 transition-colors flex items-center gap-1.5">
                             <i class="fa-solid fa-download"></i> Download
                         </a>
                     </template>
@@ -570,7 +570,7 @@
 
             <div class="flex-1 bg-gray-900 relative">
                 <template x-if="activePdf">
-                    <iframe :src="`/api/pdf?path=${encodeURIComponent(activePdf ? activePdf.relative_path : '')}`" class="w-full h-full border-0"></iframe>
+                    <iframe :src="pdfUrl(activePdf ? activePdf.relative_path : '')" class="w-full h-full border-0"></iframe>
                 </template>
             </div>
         </div>
