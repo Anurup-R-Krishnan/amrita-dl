@@ -59,6 +59,7 @@ struct Args {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 struct PdfMeta {
     original_path: String,
+    relative_path: String,
     course_code: String,
     course_title: String,
     department: String,
@@ -486,6 +487,7 @@ fn main() -> Result<()> {
             .join(&meta.year)
             .join(&meta.exam_type)
             .join(&new_fname);
+        meta.relative_path = dest_rel.to_string_lossy().to_string();
         let dest_full = args.dest.join(&dest_rel);
 
         if let Ok(mut f) = proposal_file.lock() {
@@ -546,11 +548,11 @@ fn main() -> Result<()> {
         // Write index.tsv
         let tsv_path = args.dest.join("index.tsv");
         let mut tsv = BufWriter::new(File::create(tsv_path)?);
-        writeln!(tsv, "CourseCode\tCourseTitle\tDepartment\tProgram\tSemester\tYear\tExamType\tCourseCategory\tCourseLevel\tOriginalPath")?;
+        writeln!(tsv, "CourseCode\tCourseTitle\tDepartment\tProgram\tSemester\tYear\tExamType\tCourseCategory\tCourseLevel\tOriginalPath\tRelativePath")?;
         for m in metas.iter() {
             writeln!(
                 tsv,
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                 sanitize_text(&m.course_code),
                 sanitize_text(&m.course_title),
                 sanitize_text(&m.department),
@@ -560,7 +562,8 @@ fn main() -> Result<()> {
                 sanitize_text(&m.exam_type),
                 sanitize_text(&m.course_category),
                 sanitize_text(&m.course_level),
-                sanitize_text(&m.original_path)
+                sanitize_text(&m.original_path),
+                sanitize_text(&m.relative_path)
             )?;
         }
         tsv.flush()?;
@@ -585,7 +588,8 @@ fn main() -> Result<()> {
                 course_level TEXT NOT NULL,
                 sha256 TEXT,
                 confidence TEXT,
-                original_path TEXT NOT NULL
+                original_path TEXT NOT NULL,
+                relative_path TEXT NOT NULL
             )",
             [],
         )?;
@@ -596,6 +600,7 @@ fn main() -> Result<()> {
         conn.execute("CREATE INDEX idx_year ON papers(year);", [])?;
         conn.execute("CREATE INDEX idx_code ON papers(course_code);", [])?;
         conn.execute("CREATE INDEX idx_title ON papers(course_title);", [])?;
+        conn.execute("CREATE INDEX idx_rel_path ON papers(relative_path);", [])?;
 
         conn.execute(
             "CREATE VIRTUAL TABLE papers_fts USING fts5(course_code, course_title, department, program, course_category, year, exam_type)",
@@ -605,8 +610,8 @@ fn main() -> Result<()> {
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
-                "INSERT INTO papers (course_code, course_title, department, program, semester, year, exam_type, course_category, course_level, sha256, confidence, original_path)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                "INSERT INTO papers (course_code, course_title, department, program, semester, year, exam_type, course_category, course_level, sha256, confidence, original_path, relative_path)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             )?;
             let mut fts_stmt = tx.prepare(
                 "INSERT INTO papers_fts (course_code, course_title, department, program, course_category, year, exam_type)
@@ -624,8 +629,9 @@ fn main() -> Result<()> {
                 let cat = sanitize_text(&m.course_category);
                 let lvl = sanitize_text(&m.course_level);
                 let orig = sanitize_text(&m.original_path);
+                let rel = sanitize_text(&m.relative_path);
 
-                stmt.execute(params![code, title, dept, prog, sem, yr, etype, cat, lvl, m.sha256, m.confidence, orig])?;
+                stmt.execute(params![code, title, dept, prog, sem, yr, etype, cat, lvl, m.sha256, m.confidence, orig, rel])?;
                 fts_stmt.execute(params![code, title, dept, prog, cat, yr, etype])?;
             }
         }

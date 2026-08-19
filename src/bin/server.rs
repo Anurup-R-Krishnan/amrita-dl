@@ -503,7 +503,7 @@ async fn handle_search(
     let total: usize = count_stmt.query_row(rusqlite_count_params.as_slice(), |r| r.get(0)).unwrap_or(0);
 
     // 2. Fetch paginated result records
-    let mut sql = format!("SELECT p.id, p.course_code, p.course_title, p.department, p.program, p.semester, p.year, p.exam_type, p.course_category, p.course_level, p.original_path FROM papers p {where_clause}");
+    let mut sql = format!("SELECT p.id, p.course_code, p.course_title, p.department, p.program, p.semester, p.year, p.exam_type, p.course_category, p.course_level, p.original_path, COALESCE(p.relative_path, '') FROM papers p {where_clause}");
 
     if has_text_q {
         sql.push_str(" ORDER BY bm25(papers_fts, 10.0, 5.0, 2.0, 1.0, 1.0, 1.0, 1.0) ASC LIMIT ? OFFSET ?");
@@ -527,17 +527,23 @@ async fn handle_search(
     let rows = stmt
         .query_map(rusqlite_params.as_slice(), |row| {
             let orig_path: String = row.get(10)?;
-            let orig_p = std::path::Path::new(&orig_path);
-            let rel = if let Ok(stripped) = orig_p.strip_prefix(&state.raw_root) {
-                stripped.to_string_lossy().to_string()
-            } else if let Ok(stripped) = orig_p.strip_prefix(&state.indexed_root) {
-                stripped.to_string_lossy().to_string()
-            } else if let Some(pos) = orig_path.find("Examination  Papers/") {
-                orig_path[pos..].to_string()
-            } else if let Some(pos) = orig_path.find("Examination Papers/") {
-                orig_path[pos..].to_string()
+            let db_rel_path: String = row.get(11)?;
+
+            let rel = if !db_rel_path.is_empty() {
+                db_rel_path
             } else {
-                orig_path.trim_start_matches('/').to_string()
+                let orig_p = std::path::Path::new(&orig_path);
+                if let Ok(stripped) = orig_p.strip_prefix(&state.raw_root) {
+                    stripped.to_string_lossy().to_string()
+                } else if let Ok(stripped) = orig_p.strip_prefix(&state.indexed_root) {
+                    stripped.to_string_lossy().to_string()
+                } else if let Some(pos) = orig_path.find("Examination  Papers/") {
+                    orig_path[pos..].to_string()
+                } else if let Some(pos) = orig_path.find("Examination Papers/") {
+                    orig_path[pos..].to_string()
+                } else {
+                    orig_path.trim_start_matches('/').to_string()
+                }
             };
 
             let code: String = row.get(1)?;
@@ -864,6 +870,14 @@ async fn handle_batch_download(
     State(state): State<Arc<AppState>>,
     Json(req): Json<BatchDownloadRequest>,
 ) -> impl IntoResponse {
+    if state.storage_public_url.is_some() {
+        return (
+            StatusCode::NOT_IMPLEMENTED,
+            "Batch zip download is not supported in Object Storage redirect mode. Please download papers directly.",
+        )
+            .into_response();
+    }
+
     if req.paths.is_empty() || req.paths.len() > 50 {
         return (StatusCode::BAD_REQUEST, "Invalid number of paths (1-50 allowed)").into_response();
     }
@@ -959,6 +973,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         facet_cache: Arc::new(RwLock::new(None)),
     });
 
+    let cors_allowed_origins_env = std::env::var("CORS_ALLOWED_ORIGINS")
+        .unwrap_or_else(|_| "https://amritapapers.pages.dev,http://localhost:8080,http://127.0.0.1:8080".to_string());
+    let allowed_origins: Vec<header::HeaderValue> = cors_allowed_origins_env
+        .split(',')
+        .filter_map(|s| s.trim().parse::<header::HeaderValue>().ok())
+        .collect();
+
+    let cors_layer = CorsLayer::new()
+        .allow_origin(allowed_origins)
+        .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::OPTIONS])
+        .allow_headers([header::CONTENT_TYPE, header::ACCEPT, header::AUTHORIZATION]);
+
     let app = Router::new()
         .route("/", get(handle_index))
         .route("/api/search", get(handle_search))
@@ -968,7 +994,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/health", get(handle_health))
         .route("/api/download-batch", post(handle_batch_download))
         .nest_service("/static", ServeDir::new("web"))
-        .layer(CorsLayer::permissive())
+        .layer(cors_layer)
         .layer(CompressionLayer::new())
         .layer(SetResponseHeaderLayer::overriding(
             header::X_CONTENT_TYPE_OPTIONS,
@@ -1150,5 +1176,102 @@ mod tests {
 
         let resolved = resolve_pdf_path("43", &state);
         assert!(resolved.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_real_schema_pdf_resolution_and_serving() {
+        let manager = SqliteConnectionManager::memory();
+        let pool = Pool::new(manager).unwrap();
+        {
+            let conn = pool.get().unwrap();
+            conn.execute_batch(
+                "CREATE TABLE papers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    course_code TEXT NOT NULL,
+                    course_title TEXT NOT NULL,
+                    department TEXT NOT NULL,
+                    program TEXT NOT NULL,
+                    semester TEXT NOT NULL,
+                    year TEXT NOT NULL,
+                    exam_type TEXT NOT NULL,
+                    course_category TEXT NOT NULL,
+                    course_level TEXT NOT NULL,
+                    sha256 TEXT,
+                    confidence TEXT,
+                    original_path TEXT NOT NULL,
+                    relative_path TEXT NOT NULL
+                );
+                INSERT INTO papers (
+                    id, course_code, course_title, department, program, semester, year,
+                    exam_type, course_category, course_level, sha256, confidence,
+                    original_path, relative_path
+                ) VALUES (
+                    100, '15CSE101', 'Computer Programming', 'Computer Science & Engineering',
+                    'BTech', 'Semester I', '2024', 'EndSem', 'Core', 'UG', 'dummyhash',
+                    'HIGH', 'raw/15CSE101.pdf',
+                    'Computer Science & Engineering/BTech/Core/2024/EndSem/15CSE101_paper.pdf'
+                );"
+            ).unwrap();
+        }
+
+        let temp_dir = std::env::temp_dir().join(format!("amrita_server_test_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let indexed_root = temp_dir.join("indexed");
+        let sample_pdf_rel = "Computer Science & Engineering/BTech/Core/2024/EndSem/15CSE101_paper.pdf";
+        let sample_pdf_full = indexed_root.join(sample_pdf_rel);
+        tokio_fs::create_dir_all(sample_pdf_full.parent().unwrap()).await.unwrap();
+        tokio_fs::write(&sample_pdf_full, b"%PDF-1.7 Test Content").await.unwrap();
+
+        // 1. Storage CDN Mode: PDF lookup by ID & path
+        let storage_state = Arc::new(AppState {
+            db_pool: pool.clone(),
+            indexed_root: indexed_root.clone(),
+            raw_root: temp_dir.join("raw"),
+            storage_public_url: Some("https://storage.oracle.com/bucket".to_string()),
+            facet_cache: Arc::new(RwLock::new(None)),
+        });
+
+        // Lookup by ID
+        let resolved_by_id = resolve_pdf_path("100", &storage_state);
+        assert!(resolved_by_id.is_some());
+        assert_eq!(resolved_by_id.unwrap(), sample_pdf_full);
+
+        // Lookup by Path
+        let resolved_by_path = resolve_pdf_path(sample_pdf_rel, &storage_state);
+        assert!(resolved_by_path.is_some());
+        assert_eq!(resolved_by_path.unwrap(), sample_pdf_full);
+
+        // Object storage redirect URL response
+        let mut query_params = HashMap::new();
+        query_params.insert("id".to_string(), "100".to_string());
+        let res = handle_pdf(State(storage_state.clone()), Query(query_params)).await.into_response();
+        assert_eq!(res.status(), StatusCode::FOUND);
+        let loc = res.headers().get(header::LOCATION).unwrap().to_str().unwrap();
+        assert_eq!(
+            loc,
+            "https://storage.oracle.com/bucket/Computer%20Science%20%26%20Engineering/BTech/Core/2024/EndSem/15CSE101_paper.pdf"
+        );
+
+        // Object storage batch download unsupported (501)
+        let batch_req = BatchDownloadRequest {
+            paths: vec![sample_pdf_rel.to_string()],
+        };
+        let batch_res = handle_batch_download(State(storage_state), Json(batch_req)).await.into_response();
+        assert_eq!(batch_res.status(), StatusCode::NOT_IMPLEMENTED);
+
+        // 2. Local File Serving Mode
+        let local_state = Arc::new(AppState {
+            db_pool: pool,
+            indexed_root,
+            raw_root: temp_dir.join("raw"),
+            storage_public_url: None,
+            facet_cache: Arc::new(RwLock::new(None)),
+        });
+
+        let mut local_query = HashMap::new();
+        local_query.insert("id".to_string(), "100".to_string());
+        let local_res = handle_pdf(State(local_state), Query(local_query)).await.into_response();
+        assert_eq!(local_res.status(), StatusCode::OK);
+
+        let _ = tokio_fs::remove_dir_all(&temp_dir).await;
     }
 }
