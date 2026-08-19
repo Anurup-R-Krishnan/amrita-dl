@@ -974,7 +974,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let cors_allowed_origins_env = std::env::var("CORS_ALLOWED_ORIGINS")
-        .unwrap_or_else(|_| "https://amritapapers.pages.dev,http://localhost:8080,http://127.0.0.1:8080".to_string());
+        .unwrap_or_else(|_| "https://amritapapers.pages.dev,https://amritapapers-1x5.pages.dev,http://localhost:8080,http://127.0.0.1:8080".to_string());
     let allowed_origins: Vec<header::HeaderValue> = cors_allowed_origins_env
         .split(',')
         .filter_map(|s| s.trim().parse::<header::HeaderValue>().ok())
