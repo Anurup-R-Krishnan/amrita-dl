@@ -37,7 +37,7 @@ struct AppState {
     db_pool: Pool<SqliteConnectionManager>,
     indexed_root: PathBuf,
     raw_root: PathBuf,
-    b2_public_url: Option<String>,
+    storage_public_url: Option<String>,
     facet_cache: Arc<RwLock<Option<FacetResponse>>>,
 }
 
@@ -772,8 +772,8 @@ async fn handle_pdf(
         return (StatusCode::BAD_REQUEST, "Invalid path parameter").into_response();
     }
 
-    if let Some(ref b2_base) = state.b2_public_url {
-        let clean_b2_base = b2_base.trim_end_matches('/');
+    if let Some(ref storage_base) = state.storage_public_url {
+        let clean_storage_base = storage_base.trim_end_matches('/');
         let decoded = urlencoding::decode(rel_path).unwrap_or(std::borrow::Cow::Borrowed(rel_path));
         let path_str = decoded.trim().trim_start_matches('/');
         
@@ -783,7 +783,7 @@ async fn handle_pdf(
             .unwrap_or(path_str);
 
         let encoded_filename = urlencoding::encode(filename).to_string();
-        let redirect_url = format!("{clean_b2_base}/{encoded_filename}");
+        let redirect_url = format!("{clean_storage_base}/{encoded_filename}");
         if let Ok(header_val) = header::HeaderValue::from_str(&redirect_url) {
             let mut headers = HeaderMap::new();
             headers.insert(header::LOCATION, header_val);
@@ -927,16 +927,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             e
         })?;
 
-    let b2_public_url = std::env::var("B2_PUBLIC_URL").ok();
-    if let Some(ref url) = b2_public_url {
-        info!("Backblaze B2 CDN redirect enabled: {url}");
+    let storage_public_url = std::env::var("STORAGE_PUBLIC_URL")
+        .or_else(|_| std::env::var("OCI_PUBLIC_URL"))
+        .or_else(|_| std::env::var("B2_PUBLIC_URL"))
+        .ok();
+    if let Some(ref url) = storage_public_url {
+        info!("Storage CDN redirect enabled: {url}");
     }
 
     let shared_state = Arc::new(AppState {
         db_pool,
         indexed_root,
         raw_root,
-        b2_public_url,
+        storage_public_url,
         facet_cache: Arc::new(RwLock::new(None)),
     });
 

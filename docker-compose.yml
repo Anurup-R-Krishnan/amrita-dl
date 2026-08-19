@@ -11,8 +11,8 @@ services:
       - INDEX_DB=/app/data/index.db
       - INDEXED_ROOT=/app/data/amrita-exam-papers-indexed
       - RAW_ROOT=/app/data/amrita-exam-papers
-      # Optional: Backblaze B2 / Cloudflare CDN Redirect (Zero VPS Egress)
-      # - B2_PUBLIC_URL=https://papers-cdn.yourdomain.com/file/amrita-exam-blob
+      # Optional: Oracle Cloud Infrastructure (OCI) / Cloudflare CDN Redirect
+      # - STORAGE_PUBLIC_URL=https://objectstorage.ap-hyderabad-1.oraclecloud.com/n/yournamespace/b/amrita-exam-blob/o
     volumes:
       - ./index.db:/app/data/index.db:ro
       - ./amrita-exam-papers-indexed:/app/data/amrita-exam-papers-indexed:ro

@@ -4,14 +4,14 @@ This guide details how to host the Amrita Exam Papers Search Engine completely f
 
 ---
 
-## ⚡ Recommended Stack: Cloudflare Pages + Render + Backblaze B2 (100% Free)
+## ⚡ Recommended Stack: Cloudflare Pages + Render + Oracle Cloud OCI (100% Free)
 
 | Component | Service | Cost | Function |
 | :--- | :--- | :--- | :--- |
 | **Frontend SPA** | Cloudflare Pages | **$0.00 / mo** | Global edge network hosting for `web/index.html` (<15ms latency) |
 | **Backend Search Engine** | Render.com (Docker) | **$0.00 / mo** | Native Rust Axum backend + SQLite FTS5 search (<15MB RAM footprint) |
-| **PDF Object Storage** | Backblaze B2 | **$0.00 / mo** | 10 GB free cloud storage for 19,600+ PDF question papers |
-| **Bandwidth (Egress)** | Cloudflare CDN | **$0.00 / mo** | Zero-cost egress via Cloudflare-Backblaze Bandwidth Alliance |
+| **PDF Object Storage** | Oracle Cloud (OCI) | **$0.00 / mo** | 200 GB Always Free cloud object storage for 29,600+ PDF question papers |
+| **Bandwidth (Egress)** | Cloudflare CDN | **$0.00 / mo** | Global CDN caching & zero-cost egress proxy |
 | **Keep-Alive Monitor** | UptimeRobot | **$0.00 / mo** | Pings `/api/health` every 5 mins to prevent Render cold starts |
 
 ### Architecture Flow & Low-Latency Routing
@@ -25,9 +25,9 @@ This guide details how to host the Amrita Exam Papers Search Engine completely f
 [ Cloudflare Pages Edge ]     [ Render Web Service ]
 (275+ Edge Data Centers)      (Rust Axum Engine + SQLite FTS5)
                                  │
-                                 │ 3. 302 Redirect to B2 CDN
+                                 │ 3. 302 Redirect to OCI CDN
                                  v
-                              [ Cloudflare Proxied B2 CDN ]
+                              [ Oracle Cloud (OCI) Bucket ]
                               (papers-cdn.yourdomain.com)
 ```
 
