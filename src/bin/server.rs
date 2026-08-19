@@ -1061,4 +1061,94 @@ mod tests {
     fn test_semester_metadata_garbage() {
         assert_eq!(sanitize_title("12ELL202 (Third Semester 2015 Regular", "12ELL202"), "12ELL202 Examination Paper");
     }
+
+    #[tokio::test]
+    async fn test_storage_cdn_redirect() {
+        let manager = SqliteConnectionManager::memory();
+        let pool = Pool::new(manager).unwrap();
+        {
+            let conn = pool.get().unwrap();
+            conn.execute_batch(
+                "CREATE TABLE papers (
+                    id INTEGER PRIMARY KEY,
+                    code TEXT,
+                    title TEXT,
+                    year INTEGER,
+                    exam_type TEXT,
+                    department TEXT,
+                    degree TEXT,
+                    course_type TEXT,
+                    relative_path TEXT,
+                    original_path TEXT,
+                    sha256 TEXT,
+                    file_size INTEGER
+                );
+                INSERT INTO papers (id, relative_path, original_path) VALUES (
+                    42,
+                    'Computer Science & Engineering/BTech/2024/EndSem/15CSE101_Paper_EndSem_2024.pdf',
+                    'raw/15CSE101.pdf'
+                );"
+            ).unwrap();
+        }
+
+        let state = Arc::new(AppState {
+            db_pool: pool,
+            indexed_root: PathBuf::from("/nonexistent/indexed/root"),
+            raw_root: PathBuf::from("/nonexistent/raw/root"),
+            storage_public_url: Some("https://objectstorage.ap-hyderabad-1.oraclecloud.com/n/mytenancy/b/oracle-amrita-bucket/o".to_string()),
+            facet_cache: Arc::new(RwLock::new(None)),
+        });
+
+        let resolved = resolve_pdf_path("42", &state);
+        assert!(resolved.is_some());
+        let path = resolved.unwrap();
+        assert_eq!(
+            path,
+            PathBuf::from("/nonexistent/indexed/root/Computer Science & Engineering/BTech/2024/EndSem/15CSE101_Paper_EndSem_2024.pdf")
+        );
+
+        let mut params = HashMap::new();
+        params.insert("id".to_string(), "42".to_string());
+        let response = handle_pdf(State(state), Query(params)).await.into_response();
+
+        assert_eq!(response.status(), StatusCode::FOUND);
+        let headers = response.headers();
+        let location = headers.get(header::LOCATION).unwrap().to_str().unwrap();
+        assert_eq!(
+            location,
+            "https://objectstorage.ap-hyderabad-1.oraclecloud.com/n/mytenancy/b/oracle-amrita-bucket/o/Computer%20Science%20%26%20Engineering/BTech/2024/EndSem/15CSE101_Paper_EndSem_2024.pdf"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_storage_cdn_disabled_requires_file() {
+        let manager = SqliteConnectionManager::memory();
+        let pool = Pool::new(manager).unwrap();
+        {
+            let conn = pool.get().unwrap();
+            conn.execute_batch(
+                "CREATE TABLE papers (
+                    id INTEGER PRIMARY KEY,
+                    relative_path TEXT,
+                    original_path TEXT
+                );
+                INSERT INTO papers (id, relative_path, original_path) VALUES (
+                    43,
+                    'Computer Science/Missing.pdf',
+                    'raw/Missing.pdf'
+                );"
+            ).unwrap();
+        }
+
+        let state = Arc::new(AppState {
+            db_pool: pool,
+            indexed_root: PathBuf::from("/nonexistent/indexed/root"),
+            raw_root: PathBuf::from("/nonexistent/raw/root"),
+            storage_public_url: None,
+            facet_cache: Arc::new(RwLock::new(None)),
+        });
+
+        let resolved = resolve_pdf_path("43", &state);
+        assert!(resolved.is_none());
+    }
 }
