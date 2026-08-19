@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: amrita-papers
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: INDEX_DB
+        value: "/app/data/index.db"
+      - key: INDEXED_ROOT
+        value: "/app/data/amrita-exam-papers-indexed"
+      - key: STORAGE_PUBLIC_URL
+        sync: false
