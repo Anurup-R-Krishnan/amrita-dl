@@ -1,144 +1,96 @@
-# Amrita Exam Papers -- 100% Free Cloud Deployment Guide
+# Amrita Exam Papers -- Enterprise Pure-Cloud Deployment Guide (OCI + Cloudflare)
 
-This guide details how to host the Amrita Exam Papers Search Engine completely free ($0/month forever) with enterprise-grade performance, SSL certificates, global CDN, and automatic DDoS protection.
+This guide details how to host the Amrita Exam Papers Search Engine completely free ($0/month forever) with zero cold starts, persistent SQLite FTS5 search indexing, low-latency edge CDN delivery, and 100% bandwidth offloading.
 
 ---
 
-## Recommended Stack: Cloudflare Pages + Render + Oracle Cloud OCI (100% Free)
+## Production Stack: OCI Compute + OCI Object Storage + Cloudflare Pages ($0.00 / mo)
 
 | Component | Service | Cost | Function |
 | :--- | :--- | :--- | :--- |
-| **Frontend SPA** | Cloudflare Pages | **$0.00 / mo** | Global edge network hosting for `web/index.html` (<15ms latency) |
-| **Backend Search Engine** | Render.com (Docker) | **$0.00 / mo** | Native Rust Axum backend + SQLite FTS5 search (<15MB RAM footprint) |
-| **PDF Object Storage** | Oracle Cloud (OCI) | **$0.00 / mo** | 200 GB Always Free cloud object storage for 29,600+ PDF question papers |
-| **Bandwidth (Egress)** | Cloudflare CDN | **$0.00 / mo** | Global CDN caching & zero-cost egress proxy |
-| **Keep-Alive Monitor** | UptimeRobot | **$0.00 / mo** | Pings `/api/health` every 5 mins to prevent Render cold starts |
+| **Frontend SPA** | Cloudflare Pages | **$0.00 / mo** | Global edge network hosting for `web/index.html` (`amritapapers.pages.dev`) |
+| **Backend API Engine** | OCI Always Free VM | **$0.00 / mo** | Native Rust Axum backend + SQLite FTS5 search on persistent disk (0 cold starts) |
+| **PDF Object Storage** | OCI Object Storage | **$0.00 / mo** | 200 GB Always Free object storage for 29,600+ PDF question papers |
+| **Bandwidth (Egress)** | OCI + Cloudflare | **$0.00 / mo** | 10 TB/month free egress from OCI + Cloudflare Edge Caching |
 
-### Architecture Flow & Low-Latency Routing
+### Architecture & Zero-Cost Egress Flow
 
 ```
 [ User Browser ]
        │
-       ├─────────────────────────┐
-       │ 1. Static SPA (<15ms)   │ 2. Search API (/api/*)
-       v                         v
-[ Cloudflare Pages Edge ]     [ Render Web Service ]
-(275+ Edge Data Centers)      (Rust Axum Engine + SQLite FTS5)
-                                 │
-                                 │ 3. 302 Redirect to OCI CDN
-                                 v
-                              [ Oracle Cloud (OCI) Bucket ]
-                              (papers-cdn.yourdomain.com)
+       ├────────────────────────────────────────┐
+       │ 1. Static SPA (amritapapers.pages.dev)  │ 2. Search API (/api/* via Cloudflare proxy)
+       v                                        v
+[ Cloudflare Pages Edge ]              [ OCI Always Free VM ]
+(275+ Global Data Centers)             (Rust Axum Engine + index.db)
+                                                │
+                                                │ 3. HTTP 302 Redirect
+                                                v
+                                     [ OCI Object Storage ]
+                                     (oracle-amrita-bucket in ap-hyderabad-1)
 ```
 
 ---
 
-## Step 1: Generate Cloud Deployment Bundle & Sync Dataset to Oracle Cloud Object Storage
+## Step 1: Upload Question Paper Dataset to Oracle Cloud (OCI)
 
-1. **Upload PDF Question Papers to Oracle Cloud (OCI) Object Storage**:
-   Use `rclone` and the automated sync script to upload the 29,678 PDF files to your OCI bucket (`oracle-amrita-papers:oracle-amrita-bucket`):
+Sync the 29,678 PDF question papers to your OCI bucket (`oracle-amrita-papers:oracle-amrita-bucket`) via `rclone`:
 
-   ```bash
-   # Test sync with dry run
-   ./scripts/sync_to_oracle.sh --dry-run
+```bash
+# Test sync with dry run (excludes .meta sidecar files)
+./scripts/sync_to_oracle.sh --dry-run
 
-   # Perform live sync
-   ./scripts/sync_to_oracle.sh
-   ```
-
-2. **Generate Lightweight Backend Deployment Bundle**:
-   When using Oracle Object Storage / CDN redirect mode for PDFs, set `SKIP_PDF_COPY=1` to generate a lightweight server bundle:
-
-   ```bash
-   SKIP_PDF_COPY=1 ./scripts/prepare_cloud_deploy.sh
-   ```
-
-   This compiles the release binary and packages `index.db` into `./dist` without duplicating PDF files.
-
----
-
-## Step 2: Configure Environment & Deploy Backend (Render / OCI / Docker)
-
-Set the following environment variables in your server container/hosting:
-
-```env
-PORT=8080
-INDEX_DB=/app/data/index.db
-INDEXED_ROOT=/app/data/amrita-exam-papers-indexed
-STORAGE_PUBLIC_URL=https://objectstorage.ap-hyderabad-1.oraclecloud.com/n/<namespace>/b/oracle-amrita-bucket/o
+# Perform live dataset upload
+./scripts/sync_to_oracle.sh
 ```
 
-When `STORAGE_PUBLIC_URL` is set, `server.rs` issues immediate HTTP 302 redirects to Oracle Object Storage / Cloudflare CDN for zero-latency direct PDF streaming.
+---
+
+## Step 2: Build Lightweight Backend Deployment Package
+
+On your build machine, generate the lightweight deployment bundle (contains `server` release binary + `index.db` + systemd service unit):
+
+```bash
+SKIP_PDF_COPY=1 ./scripts/prepare_cloud_deploy.sh
+```
+
+The prepped bundle is created at `./dist`.
 
 ---
 
-## Step 2: Provision Oracle Cloud (OCI) Instance
+## Step 3: Deploy Backend Axum Daemon on OCI VM (Systemd)
 
-1. Create a free account at [oracle.com/cloud/free](https://www.oracle.com/cloud/free/).
-2. Navigate to **Compute > Instances > Create Instance**.
-3. Select **Image**: Ubuntu 22.04 LTS (or Debian 12 ARM64).
-4. Select **Shape**: `VM.Standard.A1.Flex` (Assign 2 to 4 OCPUs and 12-24 GB RAM under Always Free).
-5. Add your SSH Public Key and click **Create**.
-
----
-
-## Step 3: Server Setup & Deployment
-
-1. SSH into your OCI instance:
+1. SSH into your OCI Always Free Ubuntu/Debian Instance:
    ```bash
-   ssh ubuntu@<YOUR_OCI_PUBLIC_IP>
+   ssh ubuntu@<YOUR_OCI_VM_IP>
    ```
 
-2. Install Docker and Docker Compose:
+2. Copy `./dist` contents to `~/amrita-app`:
    ```bash
-   sudo apt-get update
-   sudo apt-get install -y docker.io docker-compose-v2
-   sudo usermod -aG docker $USER
-   newgrp docker
+   scp -r ./dist/* ubuntu@<YOUR_OCI_VM_IP>:~/amrita-app/
    ```
 
-3. Transfer your `./dist` directory or git repo to the instance:
+3. Install and enable the `amrita-server.service` systemd daemon:
    ```bash
-   scp -r ./dist ubuntu@<YOUR_OCI_PUBLIC_IP>:~/amrita-app
+   sudo cp ~/amrita-app/amrita-server.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now amrita-server
    ```
 
-4. Launch the application:
+4. Check daemon status:
    ```bash
-   cd ~/amrita-app
-   docker compose up -d --build
-   ```
-
-5. Verify server health locally on the VM:
-   ```bash
+   sudo systemctl status amrita-server
    curl http://localhost:8080/api/health
-   # Expected output: {"status":"ok","database":"connected","total_papers":19600}
    ```
 
 ---
 
-## Step 4: Configure Cloudflare Tunnel (Zero Open Ports)
+## Step 4: Deploy Static SPA Frontend to Cloudflare Pages
 
-Using Cloudflare Tunnels exposes your app over HTTPS without opening port 80/443 on your OCI firewall.
+Deploy the static web assets to Cloudflare Pages (`amritapapers.pages.dev`):
 
-1. In Cloudflare Dashboard, go to **Zero Trust > Networks > Tunnels**.
-2. Click **Create a Tunnel**, name it `amrita-papers`.
-3. Follow the single line install command provided for Linux ARM64:
-   ```bash
-   sudo cloudflared service install <YOUR_TUNNEL_TOKEN>
-   ```
-4. Route traffic to:
-   - **Service Type**: HTTP
-   - **URL**: `localhost:8080`
-   - **Public Hostname**: `papers.yourdomain.com` (or your chosen domain).
+```bash
+npx wrangler pages deploy web --project-name amritapapers
+```
 
-Your application is now live worldwide over HTTPS with instant SSL!
-
----
-
-## Step 5: Free Monitoring & Uptime Alerts
-
-1. Sign up for a free account at [uptimerobot.com](https://uptimerobot.com) or [betterstack.com](https://betterstack.com).
-2. Create an **HTTP(s) Monitor**:
-   - **URL**: `https://papers.yourdomain.com/api/health`
-   - **Interval**: Every 5 minutes
-3. Enable email/SMS notifications for downtime alerts.
+Cloudflare Pages uses `web/_redirects` to proxy `/api/*` requests directly to your backend API domain, eliminating CORS overhead.

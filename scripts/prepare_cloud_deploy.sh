@@ -52,6 +52,7 @@ fi
 [ -f "${ROOT_DIR}/Dockerfile" ] && cp "${ROOT_DIR}/Dockerfile" "${DIST_DIR}/Dockerfile"
 [ -f "${ROOT_DIR}/.dockerignore" ] && cp "${ROOT_DIR}/.dockerignore" "${DIST_DIR}/.dockerignore"
 [ -f "${ROOT_DIR}/docker-compose.yml" ] && cp "${ROOT_DIR}/docker-compose.yml" "${DIST_DIR}/docker-compose.yml"
+[ -f "${ROOT_DIR}/scripts/amrita-server.service" ] && cp "${ROOT_DIR}/scripts/amrita-server.service" "${DIST_DIR}/amrita-server.service"
 
 # Link / Copy Index Database and Indexed Papers
 echo "[COPY] Copying index database (${DB_PATH}) to bundle..."

@@ -1,0 +1,19 @@
+[Unit]
+Description=Amrita Exam Papers Search Engine Axum Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/amrita-app
+ExecStart=/home/ubuntu/amrita-app/server
+Restart=always
+RestartSec=5
+Environment=PORT=8080
+Environment=INDEX_DB=/home/ubuntu/amrita-app/data/index.db
+Environment=INDEXED_ROOT=/home/ubuntu/amrita-app/data/amrita-exam-papers-indexed
+Environment=STORAGE_PUBLIC_URL=https://objectstorage.ap-hyderabad-1.oraclecloud.com/n/mytenancy/b/oracle-amrita-bucket/o
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
