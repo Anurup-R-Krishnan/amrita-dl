@@ -33,15 +33,42 @@ This guide details how to host the Amrita Exam Papers Search Engine completely f
 
 ---
 
-## Step 1: Generate Cloud Deployment Bundle
+## Step 1: Generate Cloud Deployment Bundle & Sync Dataset to Oracle Cloud Object Storage
 
-On your local development machine, run the automated bundle script:
+1. **Upload PDF Question Papers to Oracle Cloud (OCI) Object Storage**:
+   Use `rclone` and the automated sync script to upload the 29,678 PDF files to your OCI bucket (`oracle-amrita-papers:oracle-amrita-bucket`):
 
-```bash
-./scripts/prepare_cloud_deploy.sh
+   ```bash
+   # Test sync with dry run
+   ./scripts/sync_to_oracle.sh --dry-run
+
+   # Perform live sync
+   ./scripts/sync_to_oracle.sh
+   ```
+
+2. **Generate Lightweight Backend Deployment Bundle**:
+   When using Oracle Object Storage / CDN redirect mode for PDFs, set `SKIP_PDF_COPY=1` to generate a lightweight server bundle:
+
+   ```bash
+   SKIP_PDF_COPY=1 ./scripts/prepare_cloud_deploy.sh
+   ```
+
+   This compiles the release binary and packages `index.db` into `./dist` without duplicating PDF files.
+
+---
+
+## Step 2: Configure Environment & Deploy Backend (Render / OCI / Docker)
+
+Set the following environment variables in your server container/hosting:
+
+```env
+PORT=8080
+INDEX_DB=/app/data/index.db
+INDEXED_ROOT=/app/data/amrita-exam-papers-indexed
+STORAGE_PUBLIC_URL=https://objectstorage.ap-hyderabad-1.oraclecloud.com/n/<namespace>/b/oracle-amrita-bucket/o
 ```
 
-This compiles the optimized release binary and bundles `index.db` and `amrita-exam-papers-indexed/` into `./dist` (automatically omitting the raw files to save 50%+ disk space).
+When `STORAGE_PUBLIC_URL` is set, `server.rs` issues immediate HTTP 302 redirects to Oracle Object Storage / Cloudflare CDN for zero-latency direct PDF streaming.
 
 ---
 
