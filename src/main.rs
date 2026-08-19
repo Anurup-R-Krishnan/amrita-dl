@@ -1,11 +1,11 @@
 //! Amrita DSpace Exam-Papers Downloader (Rust)
 //!
 //! QoS Mitigations:
-//! 1. Server throttling/ban      → adaptive delay + jitter, auto-slowdown on 429/503
-//! 2. Partial files / net drop   → atomic .part → rename, magic-byte PDF validation
-//! 3. Drive unmount mid-run      → write-error detection, graceful pause + state save
-//! 4. Fake 200 HTML error pages  → Content-Type check + PDF magic byte (%PDF) guard
-//! 5. Duplicate items            → SHA-256 hash registry → hardlink, never re-download
+//! 1. Server throttling/ban      -> adaptive delay + jitter, auto-slowdown on 429/503
+//! 2. Partial files / net drop   -> atomic .part -> rename, magic-byte PDF validation
+//! 3. Drive unmount mid-run      -> write-error detection, graceful pause + state save
+//! 4. Fake 200 HTML error pages  -> Content-Type check + PDF magic byte (%PDF) guard
+//! 5. Duplicate items            -> SHA-256 hash registry -> hardlink, never re-download
 
 use std::{
     collections::{HashMap, HashSet, VecDeque},
@@ -71,8 +71,8 @@ struct State {
     done_items: HashSet<String>,
     /// Bitstream URLs fully downloaded
     done_files: HashSet<String>,
-    // ── QoS #5: dedup via SHA-256 → canonical path ──────────────────────────
-    /// sha256(file) → first path it was saved to (for hardlinking duplicates)
+    // -- QoS #5: dedup via SHA-256 -> canonical path --------------------------
+    /// sha256(file) -> first path it was saved to (for hardlinking duplicates)
     hash_to_path: HashMap<String, String>,
     /// Discovered collections: (handle, path-components)
     collections: Option<Vec<Collection>>,
@@ -478,7 +478,7 @@ async fn download_file(
                 }
                 match fs::hard_link(&src, dest).await {
                     Ok(_)  => {
-                        info!("⇒ hardlink (dedup): {}", dest.file_name().and_then(|n| n.to_str()).unwrap_or("?"));
+                        info!("=> hardlink (dedup): {}", dest.file_name().and_then(|n| n.to_str()).unwrap_or("?"));
                         return Ok(());
                     }
                     Err(_) => { /* cross-device or other issue — fall through to normal write */ }
@@ -515,13 +515,13 @@ async fn download_file(
 
     bytes_done.fetch_add(bytes.len() as u64, Ordering::Relaxed);
 
-    // Register hash → path for future dedup
+    // Register hash -> path for future dedup
     {
         let mut st = state.lock().await;
         st.hash_to_path.insert(hash, dest.to_string_lossy().to_string());
     }
 
-    info!("✓  {}", dest.file_name().and_then(|n| n.to_str()).unwrap_or("?"));
+    info!("[OK] {}", dest.file_name().and_then(|n| n.to_str()).unwrap_or("?"));
     Ok(())
 }
 
@@ -611,7 +611,7 @@ async fn main() -> Result<()> {
             for coll in &collections {
                 info!("  Scanning: {}", coll.path.join(" / "));
                 let items = enumerate_items(&client, &coll.handle, &coll.path).await;
-                info!("    → {} items", items.len());
+                info!("    -> {} items", items.len());
                 for item in items {
                     if seen.insert(item.handle.clone()) { all.push(item); }
                 }
@@ -680,7 +680,7 @@ async fn main() -> Result<()> {
                             let _ = save_state(&st, &sp).await;
                         }
                         Err(e) => {
-                            error!("✗  {}: {}", bs.url, e);
+                            error!("[FAIL] {}: {}", bs.url, e);
                             all_ok = false;
 
                             // QoS #3: if drive is gone, persist state and halt
@@ -716,7 +716,7 @@ async fn main() -> Result<()> {
     let st = state.lock().await;
     let mb = bytes_done.load(Ordering::Relaxed) / (1024 * 1024);
     println!(
-        "\n✓  {} files downloaded  ({} MB this session)\n✓  {} / {} items complete\nOutput: {}",
+        "\n[OK] {} files downloaded  ({} MB this session)\n[OK] {} / {} items complete\nOutput: {}",
         st.done_files.len(), mb,
         st.done_items.len(), total_items,
         dest_root.display()

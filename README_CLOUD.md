@@ -4,7 +4,7 @@ This guide details how to host the Amrita Exam Papers Search Engine completely f
 
 ---
 
-## ⚡ Recommended Stack: Cloudflare Pages + Render + Oracle Cloud OCI (100% Free)
+## Recommended Stack: Cloudflare Pages + Render + Oracle Cloud OCI (100% Free)
 
 | Component | Service | Cost | Function |
 | :--- | :--- | :--- | :--- |

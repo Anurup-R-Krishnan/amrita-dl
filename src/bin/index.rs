@@ -609,10 +609,10 @@ cat index.tsv | fzf --header-lines=1 --with-nth 1,2,3,4,8
 ```
 "#)?;
 
-        println!("✓ Created index.json, index.tsv, index.db, and README.md at {}", args.dest.display());
+        println!("[OK] Created index.json, index.tsv, index.db, and README.md at {}", args.dest.display());
     }
 
-    println!("✓ Proposal saved to rename_proposal.csv");
+    println!("[OK] Proposal saved to rename_proposal.csv");
     println!("Processing finished successfully.");
 
     Ok(())
