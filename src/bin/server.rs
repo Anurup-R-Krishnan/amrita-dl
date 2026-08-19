@@ -739,6 +739,11 @@ fn resolve_pdf_path(identifier: &str, state: &AppState) -> Option<PathBuf> {
         ).ok()?
     };
 
+    // If Storage CDN redirect mode is active, return DB-validated path without disk existence check
+    if state.storage_public_url.is_some() {
+        return Some(state.indexed_root.join(&validated_path));
+    }
+
     let raw_canonical = state.raw_root.canonicalize().ok();
     let indexed_canonical = state.indexed_root.canonicalize().ok();
 
@@ -789,13 +794,18 @@ async fn handle_pdf(
 
     if let Some(ref storage_base) = state.storage_public_url {
         let clean_storage_base = storage_base.trim_end_matches('/');
-        let filename = canonical
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("document.pdf");
+        let rel_path = canonical
+            .strip_prefix(&state.indexed_root)
+            .or_else(|_| canonical.strip_prefix(&state.raw_root))
+            .unwrap_or(&canonical);
 
-        let encoded_filename = urlencoding::encode(filename).to_string();
-        let redirect_url = format!("{clean_storage_base}/{encoded_filename}");
+        let encoded_segments: Vec<String> = rel_path
+            .components()
+            .map(|c| urlencoding::encode(&c.as_os_str().to_string_lossy()).to_string())
+            .collect();
+        let encoded_rel_path = encoded_segments.join("/");
+
+        let redirect_url = format!("{clean_storage_base}/{encoded_rel_path}");
         if let Ok(header_val) = header::HeaderValue::from_str(&redirect_url) {
             let mut headers = HeaderMap::new();
             headers.insert(header::LOCATION, header_val);
