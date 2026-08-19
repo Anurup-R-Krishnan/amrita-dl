@@ -5,7 +5,9 @@ echo "========================================="
 echo "  Amrita Frontend Automated CI Check     "
 echo "========================================="
 
-INDEX_FILE="web/index.html"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+INDEX_FILE="${ROOT_DIR}/web/index.html"
 
 if [ ! -f "$INDEX_FILE" ]; then
     echo "[ERROR] $INDEX_FILE does not exist!"
@@ -40,8 +42,13 @@ fi
 
 # Check 4: Verify single-root templates inside x-for loops (Alpine V3 compliance)
 if grep -q "x-for" "$INDEX_FILE"; then
+    XFOR_COUNT=$(grep -c "x-for" "$INDEX_FILE" || true)
     TEMPLATE_COUNT=$(grep -c "<template" "$INDEX_FILE" || true)
-    echo "[OK] Verified $TEMPLATE_COUNT Alpine V3 templates in $INDEX_FILE."
+    if [ "$TEMPLATE_COUNT" -lt "$XFOR_COUNT" ]; then
+        echo "[ERROR] Found $XFOR_COUNT x-for directives but only $TEMPLATE_COUNT <template> tags in $INDEX_FILE!"
+        exit 1
+    fi
+    echo "[OK] Verified $XFOR_COUNT x-for directives match $TEMPLATE_COUNT Alpine V3 <template> tags."
 fi
 
 echo "========================================="

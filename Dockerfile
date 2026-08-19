@@ -33,6 +33,9 @@ WORKDIR /app
 COPY --from=builder --chown=appuser:appuser /app/target/release/server /app/server
 COPY --chown=appuser:appuser web /app/web
 
+# Create data directory with appropriate appuser ownership
+RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
+
 # Default environment configuration
 ENV PORT=8080 \
     INDEX_DB=/app/data/index.db \
