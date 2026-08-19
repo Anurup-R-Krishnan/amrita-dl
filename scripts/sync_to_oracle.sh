@@ -27,8 +27,9 @@ if [ "${1:-}" = "--dry-run" ]; then
     echo "[INFO] Running in DRY-RUN mode. No files will be uploaded."
 fi
 
-echo "[SYNC] Starting rclone sync..."
+echo "[SYNC] Starting rclone sync (excluding .meta sidecar files)..."
 rclone sync "${INDEXED_SRC}" "${REMOTE}" \
+    --exclude "*.meta" \
     --transfers=16 \
     --checkers=32 \
     --checksum \
