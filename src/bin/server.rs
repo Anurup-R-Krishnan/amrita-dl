@@ -7,7 +7,8 @@ use std::{
     collections::HashMap,
     net::SocketAddr,
     path::PathBuf,
-    sync::Arc,
+    sync::{Arc, LazyLock, RwLock},
+    time::{Duration, Instant},
 };
 
 use axum::{
@@ -30,7 +31,25 @@ use tower_http::{
 };
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
-use std::sync::RwLock;
+
+static RE_NUM_LETTER: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"(\d)([A-Za-z])").unwrap()
+});
+static RE_ROMAN_CONCAT: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"(?i)\b([a-z]{3,})(I{2,3}|IV|VI{0,3}|IX|XI{0,2})\b").unwrap()
+});
+static RE_CODE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"(?i)(\b\d{2})?[A-Z]{2,6}\d{3,4}[A-Z]?\b").unwrap()
+});
+static RE_SPACES: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"\s+").unwrap()
+});
+
+#[derive(Clone)]
+struct CachedFacets {
+    response: FacetResponse,
+    computed_at: Instant,
+}
 
 #[derive(Clone)]
 struct AppState {
@@ -38,7 +57,7 @@ struct AppState {
     indexed_root: PathBuf,
     raw_root: PathBuf,
     storage_public_url: Option<String>,
-    facet_cache: Arc<RwLock<Option<FacetResponse>>>,
+    facet_cache: Arc<RwLock<Option<CachedFacets>>>,
 }
 
 #[derive(Deserialize)]
@@ -194,24 +213,21 @@ fn sanitize_title(title: &str, code: &str) -> String {
     }
 
     // Insert space between digits and following letters (e.g. "21vl601Embedded" -> "21vl601 Embedded")
-    let re_num_letter = regex::Regex::new(r"(\d)([A-Za-z])").unwrap();
-    t = re_num_letter.replace_all(&t, "$1 $2").to_string();
+    t = RE_NUM_LETTER.replace_all(&t, "$1 $2").to_string();
 
     // Insert space before Roman numerals concatenated to words: e.g. "MalayalamII" -> "Malayalam II"
-    let re_roman_concat = regex::Regex::new(r"(?i)\b([a-z]{3,})(I{2,3}|IV|VI{0,3}|IX|XI{0,2})\b").unwrap();
-    t = re_roman_concat.replace_all(&t, "$1 $2").to_string();
+    t = RE_ROMAN_CONCAT.replace_all(&t, "$1 $2").to_string();
 
-    // Strip ALL leading non-alphabetic characters (handles &, /, ,, ., –, -, spaces, etc.)
+    // Strip ALL leading non-alphabetic characters (handles &, /, ,, ., -, spaces, etc.)
     t = t.trim_start_matches(|c: char| !c.is_alphabetic()).to_string();
 
     // Remove course code patterns:
     // 1) Standard codes with or without 2-digit year prefix: 21TAM101, 24AI632, 21VL601, OL832, CHY251, RM610, CS602
-    let re_code = regex::Regex::new(r"(?i)(\b\d{2})?[A-Z]{2,6}\d{3,4}[A-Z]?\b").unwrap();
-    t = re_code.replace_all(&t, " ").trim().to_string();
+    t = RE_CODE.replace_all(&t, " ").trim().to_string();
 
-    // Clean up remaining punctuation: replace (, ), [, ], /, -, –, :, comma with space
+    // Clean up remaining punctuation: replace (, ), [, ], /, -, :, comma with space
     t = t.chars().map(|c| match c {
-        '(' | ')' | '[' | ']' | '/' | '-' | '–' | ':' | ',' | '.' => ' ',
+        '(' | ')' | '[' | ']' | '/' | '-' | ':' | ',' | '.' => ' ',
         _ => c,
     }).collect();
 
@@ -219,7 +235,7 @@ fn sanitize_title(title: &str, code: &str) -> String {
     t = t.trim_start_matches(|c: char| !c.is_alphabetic()).to_string();
 
     // Collapse multiple spaces
-    t = regex::Regex::new(r"\s+").unwrap().replace_all(&t, " ").trim().to_string();
+    t = RE_SPACES.replace_all(&t, " ").trim().to_string();
 
     // Detect garbage titles (PDF question text leaked through extraction or exam metadata stored as title)
     let garbage_patterns = [
@@ -420,14 +436,14 @@ async fn handle_search(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let raw_q = params.q.unwrap_or_default().trim().to_string();
-    let has_text_q = !raw_q.is_empty();
+    let sanitized = if !raw_q.is_empty() { sanitize_fts_query(&raw_q) } else { String::new() };
+    let fts_query = if !sanitized.is_empty() { expand_synonyms(&sanitized) } else { String::new() };
+    let has_text_q = !fts_query.trim().is_empty();
 
     let mut where_clause = String::new();
     let mut bindings: Vec<String> = Vec::new();
 
     if has_text_q {
-        let sanitized = sanitize_fts_query(&raw_q);
-        let fts_query = expand_synonyms(&sanitized);
         where_clause.push_str(" JOIN papers_fts fts ON p.id = fts.rowid WHERE papers_fts MATCH ? ");
         bindings.push(fts_query);
     } else {
@@ -490,7 +506,7 @@ async fn handle_search(
     let mut sql = format!("SELECT p.id, p.course_code, p.course_title, p.department, p.program, p.semester, p.year, p.exam_type, p.course_category, p.course_level, p.original_path FROM papers p {where_clause}");
 
     if has_text_q {
-        sql.push_str(" ORDER BY bm25(papers_fts, 10.0, 5.0, 2.0) ASC LIMIT ? OFFSET ?");
+        sql.push_str(" ORDER BY bm25(papers_fts, 10.0, 5.0, 2.0, 1.0, 1.0, 1.0, 1.0) ASC LIMIT ? OFFSET ?");
     } else {
         match params.sort.as_deref() {
             Some("code_asc") => sql.push_str(" ORDER BY p.course_code ASC LIMIT ? OFFSET ?"),
@@ -565,12 +581,14 @@ async fn handle_search(
 async fn handle_facets(
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    // Check in-memory facet cache first
+    // Check in-memory facet cache first with TTL validation (300s)
     if let Ok(cache) = state.facet_cache.read() {
         if let Some(cached) = cache.as_ref() {
-            let mut headers = HeaderMap::new();
-            headers.insert(header::CACHE_CONTROL, "public, max-age=300".parse().unwrap());
-            return Ok((headers, Json(cached.clone())));
+            if cached.computed_at.elapsed() < Duration::from_secs(300) {
+                let mut headers = HeaderMap::new();
+                headers.insert(header::CACHE_CONTROL, "public, max-age=300".parse().unwrap());
+                return Ok((headers, Json(cached.response.clone())));
+            }
         }
     }
 
@@ -578,7 +596,8 @@ async fn handle_facets(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let mut total_papers = 0;
-    let mut stmt_total = conn.prepare("SELECT count(*) FROM papers").unwrap();
+    let mut stmt_total = conn.prepare("SELECT count(*) FROM papers")
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     if let Ok(mut rows) = stmt_total.query([]) {
         if let Ok(Some(row)) = rows.next() {
             total_papers = row.get(0).unwrap_or(0);
@@ -633,9 +652,12 @@ async fn handle_facets(
         total_papers,
     };
 
-    // Store in cache for subsequent requests
+    // Store in cache with current timestamp for subsequent requests
     if let Ok(mut cache) = state.facet_cache.write() {
-        *cache = Some(facet_response.clone());
+        *cache = Some(CachedFacets {
+            response: facet_response.clone(),
+            computed_at: Instant::now(),
+        });
     }
 
     let mut headers = HeaderMap::new();
@@ -732,30 +754,6 @@ fn resolve_pdf_path(rel_path: &str, state: &AppState) -> Option<PathBuf> {
         }
     }
 
-    // Fallback: If direct candidate paths failed, locate PDF by filename in indexed_root and raw_root
-    let filename = std::path::Path::new(rel_clean)
-        .file_name()
-        .and_then(|n| n.to_str())?;
-    
-    let target_lower = filename.to_lowercase();
-    let search_roots = [&state.indexed_root, &state.raw_root];
-
-    for root in search_roots {
-        if root.exists() {
-            for entry in walkdir::WalkDir::new(root).into_iter().filter_map(|e| e.ok()) {
-                if entry.file_type().is_file() {
-                    if let Some(name) = entry.file_name().to_str() {
-                        if name.to_lowercase() == target_lower {
-                            if let Ok(canonical) = entry.path().canonicalize() {
-                                return Some(canonical);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     None
 }
 
@@ -763,18 +761,34 @@ async fn handle_pdf(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
-    let rel_path = match params.get("path") {
-        Some(p) => p,
-        None => return (StatusCode::BAD_REQUEST, "Missing path parameter").into_response(),
+    let orig_path = if let Some(id_str) = params.get("id") {
+        if let Ok(id) = id_str.parse::<i64>() {
+            let conn = match state.db_pool.get() {
+                Ok(c) => c,
+                Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "Database pool error").into_response(),
+            };
+            let orig: Option<String> = conn
+                .query_row("SELECT original_path FROM papers WHERE id = ?1", params![id], |r| r.get(0))
+                .ok();
+            match orig {
+                Some(p) => p,
+                None => return (StatusCode::NOT_FOUND, "Paper ID Not Found").into_response(),
+            }
+        } else {
+            return (StatusCode::BAD_REQUEST, "Invalid paper ID").into_response();
+        }
+    } else if let Some(p) = params.get("path") {
+        if p.contains("..") || p.contains("\\..") {
+            return (StatusCode::BAD_REQUEST, "Invalid path parameter").into_response();
+        }
+        p.to_string()
+    } else {
+        return (StatusCode::BAD_REQUEST, "Missing id or path parameter").into_response();
     };
-
-    if rel_path.contains("..") || rel_path.contains("\\..") {
-        return (StatusCode::BAD_REQUEST, "Invalid path parameter").into_response();
-    }
 
     if let Some(ref storage_base) = state.storage_public_url {
         let clean_storage_base = storage_base.trim_end_matches('/');
-        let decoded = urlencoding::decode(rel_path).unwrap_or(std::borrow::Cow::Borrowed(rel_path));
+        let decoded = urlencoding::decode(&orig_path).unwrap_or(std::borrow::Cow::Borrowed(&orig_path));
         let path_str = decoded.trim().trim_start_matches('/');
         
         let filename = std::path::Path::new(path_str)
@@ -792,7 +806,7 @@ async fn handle_pdf(
         }
     }
 
-    let canonical = match resolve_pdf_path(rel_path, &state) {
+    let canonical = match resolve_pdf_path(&orig_path, &state) {
         Some(p) => p,
         None => return (StatusCode::NOT_FOUND, "PDF File Not Found").into_response(),
     };
@@ -864,7 +878,7 @@ async fn handle_batch_download(
                     .and_then(|n| n.to_str())
                     .unwrap_or("document.pdf");
 
-                if let Ok(bytes) = std::fs::read(&canonical) {
+                if let Ok(bytes) = tokio_fs::read(&canonical).await {
                     if zip.start_file(filename, zip_opts).is_ok() {
                         use std::io::Write;
                         let _ = zip.write_all(&bytes);

@@ -7,11 +7,26 @@
 use std::{
     collections::HashMap,
     fs::{self as std_fs, File},
-    io::{BufWriter, Write},
+    io::{BufWriter, Read, Write},
     path::{Path, PathBuf},
-    process::Command,
-    sync::{Arc, Mutex},
+    process::{Command, Stdio},
+    sync::{Arc, LazyLock, Mutex},
+    thread,
+    time::{Duration, Instant},
 };
+
+static RE_EXAM_META: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"(?i)\b(I+V?|VI?I*)\s*(Ass|Asst|Sem|Semester)\b|\b(First|Second|Third)\s*(Assessment|Sem)\b|\b(Ass|Asst|Mid\s*Term|End\s*Sem|END)\s*(I+V?|VI?I*|\d+)?\b|\b(Jan|Feb|Mar|March|Apr|April|May|June|July|Aug|August|Sep|Sept|September|Oct|October|Nov|November|Dec|December)\b|\b(20\d{2}|19\d{2})\b").unwrap()
+});
+static RE_CODE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"(?i)\b([0-9]{2}[A-Z]{2,6}[0-9]{3,4}|[A-Z]{2,6}[0-9]{3,4}|[A-Z]{2,4}\s?[0-9]{3,4})").unwrap()
+});
+static RE_SEM: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"(?i)(\d+)(st|nd|rd|th)?\s*Semester").unwrap()
+});
+static RE_YR: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"/(19[89]\d|20[0-9]{2})\b|\b(19[89]\d|20[0-9]{2})\b").unwrap()
+});
 
 use anyhow::Result;
 use clap::Parser;
@@ -90,9 +105,8 @@ fn sanitize_title(raw: &str) -> String {
         .trim_matches(|c: char| c == '-' || c == ':' || c == '[' || c == ']' || c == '(' || c == ')' || c == '_' || c.is_whitespace())
         .to_string();
 
-    let re_exam_meta = regex::Regex::new(r"(?i)\b(I+V?|VI?I*)\s*(Ass|Asst|Sem|Semester)\b|\b(First|Second|Third)\s*(Assessment|Sem)\b|\b(Ass|Asst|Mid\s*Term|End\s*Sem|END)\s*(I+V?|VI?I*|\d+)?\b|\b(Jan|Feb|Mar|March|Apr|April|May|June|July|Aug|Sep|Sept|Oct|Nov|Dec)\s*20\d{2}\b").unwrap();
-    if re_exam_meta.is_match(&clean) || clean.starts_with("Ass") || clean.starts_with("Asst") || clean.starts_with("Sem") {
-        let stripped = re_exam_meta.replace_all(&clean, "").to_string();
+    if RE_EXAM_META.is_match(&clean) || clean.starts_with("Ass") || clean.starts_with("Asst") || clean.starts_with("Sem") {
+        let stripped = RE_EXAM_META.replace_all(&clean, "").to_string();
         clean = stripped
             .split_whitespace()
             .collect::<Vec<&str>>()
@@ -197,16 +211,49 @@ fn extract_pdf_metadata(pdf_path: &Path) -> PdfMeta {
         ..Default::default()
     };
 
-    let output = Command::new("pdftotext")
+    let child = Command::new("pdftotext")
         .arg("-layout")
         .arg("-f").arg("1")
         .arg("-l").arg("1")
         .arg(pdf_path)
         .arg("-")
-        .output();
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn();
 
-    let text = match output {
-        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout).to_string(),
+    let text_opt = if let Ok(mut child) = child {
+        let start = Instant::now();
+        let timeout = Duration::from_secs(5);
+        loop {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    if status.success() {
+                        let mut stdout = String::new();
+                        if let Some(mut out) = child.stdout.take() {
+                            let _ = out.read_to_string(&mut stdout);
+                        }
+                        break Some(stdout);
+                    } else {
+                        break None;
+                    }
+                }
+                Ok(None) => {
+                    if start.elapsed() >= timeout {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        break None;
+                    }
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(_) => break None,
+            }
+        }
+    } else {
+        None
+    };
+
+    let text = match text_opt {
+        Some(out) if !out.trim().is_empty() => out,
         _ => return meta_from_path(pdf_path, &mut meta),
     };
 
@@ -255,9 +302,8 @@ fn extract_pdf_metadata(pdf_path: &Path) -> PdfMeta {
         }
     }
 
-    let re_code = regex::Regex::new(r"(?i)\b([0-9]{2}[A-Z]{2,6}[0-9]{3,4}|[A-Z]{2,6}[0-9]{3,4}|[A-Z]{2,4}\s?[0-9]{3,4})").unwrap();
     for line in &lines {
-        if let Some(mat) = re_code.find(line) {
+        if let Some(mat) = RE_CODE.find(line) {
             let code = mat.as_str();
             meta.course_code = code.to_string();
             
@@ -281,10 +327,8 @@ fn meta_from_path(pdf_path: &Path, meta: &mut PdfMeta) -> PdfMeta {
     let path_str = pdf_path.to_string_lossy();
     let fname = pdf_path.file_name().unwrap_or_default().to_string_lossy();
 
-    let re_code = regex::Regex::new(r"(?i)\b([0-9]{2}[A-Z]{2,6}[0-9]{3,4}|[A-Z]{2,6}[0-9]{3,4}|[A-Z]{2,4}\s?[0-9]{3,4})").unwrap();
-
     if meta.course_code.is_empty() {
-        if let Some(mat) = re_code.find(&fname) {
+        if let Some(mat) = RE_CODE.find(&fname) {
             meta.course_code = mat.as_str().to_string();
         } else {
             let first_part = fname.split('.').next().unwrap_or("UNKNOWN");
@@ -323,23 +367,23 @@ fn meta_from_path(pdf_path: &Path, meta: &mut PdfMeta) -> PdfMeta {
     }
 
     if meta.program.is_empty() || meta.program == "BTech" || meta.program == "MTech" {
-        if path_str.contains("B.Tech") || meta.program == "BTech" { meta.program = "B.Tech".to_string(); }
-        else if path_str.contains("M.Tech") || meta.program == "MTech" { meta.program = "M.Tech".to_string(); }
-        else if path_str.contains("MCA") { meta.program = "MCA".to_string(); }
-        else if path_str.contains("PhD") || path_str.contains("Ph.D") { meta.program = "PhD".to_string(); }
-        else if path_str.contains("Integrated MSc") || path_str.contains("Int. M.Sc") || path_str.contains("Integrated") { meta.program = "Integrated M.Sc.".to_string(); }
-        else if path_str.contains("PG Diploma") { meta.program = "PG Diploma".to_string(); }
-        else if path_str.contains("PG/") || path_str.contains("PG\\") { meta.program = "M.Sc.".to_string(); }
-        else if path_str.contains("BA Communi") || path_str.contains("BA Communication") || (path_str.contains("Communication") && !path_str.contains("Electronics")) { meta.program = "B.A. Communication".to_string(); }
-        else if path_str.contains("Social Work") || path_str.contains("MSW") { meta.program = "MSW".to_string(); }
-        else if path_str.contains("Arts") || path_str.contains("Humanities") { meta.program = "Humanities".to_string(); }
-        else if path_str.contains("Science") { meta.program = "M.Sc.".to_string(); }
+        let p_lower = path_str.to_lowercase();
+        if p_lower.contains("b.tech") || meta.program == "BTech" { meta.program = "B.Tech".to_string(); }
+        else if p_lower.contains("m.tech") || meta.program == "MTech" { meta.program = "M.Tech".to_string(); }
+        else if p_lower.contains("mca") { meta.program = "MCA".to_string(); }
+        else if p_lower.contains("phd") || p_lower.contains("ph.d") { meta.program = "PhD".to_string(); }
+        else if p_lower.contains("integrated msc") || p_lower.contains("int. m.sc") || p_lower.contains("integrated") { meta.program = "Integrated M.Sc.".to_string(); }
+        else if p_lower.contains("pg diploma") { meta.program = "PG Diploma".to_string(); }
+        else if p_lower.contains("pg/") || p_lower.contains("pg\\") { meta.program = "M.Sc.".to_string(); }
+        else if p_lower.contains("ba communi") || p_lower.contains("ba communication") || (p_lower.contains("communication") && !p_lower.contains("electronics")) { meta.program = "B.A. Communication".to_string(); }
+        else if p_lower.contains("social work") || p_lower.contains("msw") { meta.program = "MSW".to_string(); }
+        else if p_lower.contains("arts") || p_lower.contains("humanities") { meta.program = "Humanities".to_string(); }
+        else if p_lower.contains("science") { meta.program = "M.Sc.".to_string(); }
         else { meta.program = "B.Tech".to_string(); }
     }
 
     if meta.semester.is_empty() {
-        let re_sem = regex::Regex::new(r"(?i)(\d+)(st|nd|rd|th)?\s*Semester").unwrap();
-        if let Some(caps) = re_sem.captures(&path_str) {
+        if let Some(caps) = RE_SEM.captures(&path_str) {
             if let Ok(num) = caps[1].parse::<u32>() {
                 meta.semester = format!("Sem{:02}", num);
             }
@@ -348,8 +392,7 @@ fn meta_from_path(pdf_path: &Path, meta: &mut PdfMeta) -> PdfMeta {
     }
 
     let max_year = get_current_year() + 1;
-    let re_yr = regex::Regex::new(r"/(19[89]\d|20[0-9]{2})\b|\b(19[89]\d|20[0-9]{2})\b").unwrap();
-    if let Some(mat) = re_yr.captures(&path_str) {
+    if let Some(mat) = RE_YR.captures(&path_str) {
         if let Some(m) = mat.get(1).or_else(|| mat.get(2)) {
             if let Ok(y) = m.as_str().parse::<i32>() {
                 if y >= 1990 && y <= max_year {
@@ -468,7 +511,11 @@ fn main() -> Result<()> {
 
             if let Ok(mut map) = sha_map.lock() {
                 if let Some(existing_dest) = map.get(&meta.sha256) {
-                    let _ = std_fs::hard_link(existing_dest, &dest_full);
+                    if std_fs::hard_link(existing_dest, &dest_full).is_err()
+                        && std_fs::copy(existing_dest, &dest_full).is_err()
+                    {
+                        let _ = std_fs::copy(pdf, &dest_full);
+                    }
                 } else {
                     if std_fs::copy(pdf, &dest_full).is_ok() {
                         map.insert(meta.sha256.clone(), dest_full.to_string_lossy().to_string());

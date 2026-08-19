@@ -34,17 +34,17 @@ use tokio::{
 };
 use tracing::{debug, error, info, warn};
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// -- Constants -----------------------------------------------------------------
 
 const BASE_URL:    &str = "http://dspace.amritanet.edu:8080";
 const ROOT_HANDLE: &str = "123456789/16";
 const STATE_FILE:  &str = "state.json";
-const PDF_MAGIC:   &[u8] = b"%PDF";
+const PDF_MAGIC:   &[u8] = b"%PDF-";
 
-// ── CLI ───────────────────────────────────────────────────────────────────────
+// -- CLI -----------------------------------------------------------------------
 
 #[derive(Parser, Debug)]
-#[command(name = "amrita-dl", about = "Download Amrita exam papers — hardened", version)]
+#[command(name = "amrita-dl", about = "Download Amrita exam papers - hardened", version)]
 struct Args {
     /// Root download directory
     #[arg(long, default_value = "./amrita-exam-papers")]
@@ -63,7 +63,7 @@ struct Args {
     verbose: bool,
 }
 
-// ── State ─────────────────────────────────────────────────────────────────────
+// -- State ---------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Default)]
 struct State {
@@ -94,7 +94,7 @@ struct Item {
     path:   Vec<String>,
 }
 
-// ── HTTP client with adaptive throttle ───────────────────────────────────────
+// -- HTTP client with adaptive throttle ---------------------------------------
 
 struct HttpClient {
     inner:   Client,
@@ -126,14 +126,14 @@ impl HttpClient {
         Duration::from_millis((self.base_ms as f64 * m * jitter_pct) as u64)
     }
 
-    /// Back off: double multiplier (capped at 16×)
+    /// Back off: double multiplier (capped at 16x)
     async fn back_off(&self) {
         let mut m = self.multiplier.lock().await;
         *m = (*m * 2.0).min(16.0);
-        warn!("Throttle detected — delay multiplier now {:.1}×", *m);
+        warn!("Throttle detected - delay multiplier now {:.1}x", *m);
     }
 
-    /// Recover: slowly creep multiplier back toward 1×
+    /// Recover: slowly creep multiplier back toward 1x
     async fn recover(&self) {
         let mut m = self.multiplier.lock().await;
         if *m > 1.0 {
@@ -163,7 +163,7 @@ impl HttpClient {
                             wait *= 2;
                         }
                         StatusCode::NOT_FOUND | StatusCode::FORBIDDEN => {
-                            debug!("HTTP {} — skipping {}", r.status(), url);
+                            debug!("HTTP {} - skipping {}", r.status(), url);
                             return None;
                         }
                         s => {
@@ -202,7 +202,7 @@ impl HttpClient {
                 }
                 Ok(r) if r.status() == StatusCode::NOT_FOUND
                        || r.status() == StatusCode::FORBIDDEN => {
-                    debug!("HTTP {} — skipping {}", r.status(), url);
+                    debug!("HTTP {} - skipping {}", r.status(), url);
                     return None;
                 }
                 Ok(r) => {
@@ -233,16 +233,30 @@ fn rand_jitter() -> f64 {
     (ns % 1000) as f64 / 1000.0
 }
 
-// ── Selectors (built once) ────────────────────────────────────────────────────
+// -- Selectors (built once) ----------------------------------------------------
 
 fn sel(s: &str) -> Selector {
     Selector::parse(s).expect("bad CSS selector")
 }
 
 fn slugify(s: &str) -> String {
-    let s = sanitize(s.trim());
-    let s = s.trim_end_matches('.').trim().to_string();
-    if s.is_empty() { "unknown".to_string() } else { s.chars().take(120).collect() }
+    let sanitized = sanitize(s.trim());
+    let clean = sanitized.trim_end_matches('.').trim();
+    if clean.is_empty() {
+        return "unknown".to_string();
+    }
+    let path = Path::new(clean);
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or(clean);
+
+    let max_stem_len = if ext.is_empty() { 120 } else { 120usize.saturating_sub(ext.len() + 1) };
+    let truncated_stem: String = stem.chars().take(max_stem_len).collect();
+
+    if ext.is_empty() {
+        truncated_stem
+    } else {
+        format!("{}.{}", truncated_stem, ext)
+    }
 }
 
 fn extract_handle(href: &str) -> Option<&str> {
@@ -250,11 +264,15 @@ fn extract_handle(href: &str) -> Option<&str> {
     href.find(prefix).map(|p| &href[p + prefix.len()..])
 }
 
-// ── QoS #3: Drive health guard ────────────────────────────────────────────────
+// -- QoS #3: Drive health guard ------------------------------------------------
 
 /// Returns Err if the destination directory is no longer writable
 async fn check_drive(dest: &Path) -> Result<()> {
-    let probe = dest.join(".probe");
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let probe = dest.join(format!(".probe_{}_{}", std::process::id(), nanos));
     fs::write(&probe, b"ok")
         .await
         .with_context(|| format!("Drive write-check failed at {}", dest.display()))?;
@@ -262,11 +280,11 @@ async fn check_drive(dest: &Path) -> Result<()> {
     Ok(())
 }
 
-// ── QoS #4: PDF validation ────────────────────────────────────────────────────
+// -- QoS #4: PDF validation ----------------------------------------------------
 
-/// Returns true if the first 4 bytes are `%PDF`
+/// Returns true if the first 5 bytes are `%PDF-`
 fn is_valid_pdf(buf: &[u8]) -> bool {
-    buf.len() >= 4 && &buf[..4] == PDF_MAGIC
+    buf.len() >= 5 && &buf[..5] == PDF_MAGIC
 }
 
 /// Check Content-Type header is PDF-like
@@ -278,16 +296,16 @@ fn content_type_is_pdf(resp: &reqwest::Response) -> bool {
         .unwrap_or(true) // if no header, don't reject preemptively
 }
 
-// ── QoS #5: SHA-256 dedup ─────────────────────────────────────────────────────
+// -- QoS #5: SHA-256 dedup -----------------------------------------------------
 
 fn sha256_of(buf: &[u8]) -> String {
     format!("{:x}", Sha256::digest(buf))
 }
 
-// ── Discovery ─────────────────────────────────────────────────────────────────
+// -- Discovery -----------------------------------------------------------------
 
 async fn discover_collections(client: &HttpClient) -> Vec<Collection> {
-    info!("Discovering collections under handle/{} …", ROOT_HANDLE);
+    info!("Discovering collections under handle/{} ...", ROOT_HANDLE);
 
     let subcomm_sel = sel("li.ds-artifact-item.community a[href]");
     let coll_sel    = sel("li.ds-artifact-item.collection a[href]");
@@ -342,7 +360,7 @@ async fn discover_collections(client: &HttpClient) -> Vec<Collection> {
     collections
 }
 
-// ── Item enumeration ──────────────────────────────────────────────────────────
+// -- Item enumeration ----------------------------------------------------------
 
 async fn enumerate_items(client: &HttpClient, handle: &str, path: &[String]) -> Vec<Item> {
     let item_sel = sel("div.artifact-title a[href]");
@@ -375,7 +393,7 @@ async fn enumerate_items(client: &HttpClient, handle: &str, path: &[String]) -> 
     results
 }
 
-// ── Bitstream extraction ──────────────────────────────────────────────────────
+// -- Bitstream extraction ------------------------------------------------------
 
 struct Bitstream {
     url:      String,
@@ -418,7 +436,7 @@ async fn extract_bitstreams(client: &HttpClient, item_handle: &str) -> Vec<Bitst
     results
 }
 
-// ── File download (all QoS guards applied) ────────────────────────────────────
+// -- File download (all QoS guards applied) ------------------------------------
 
 #[allow(clippy::too_many_arguments)]
 async fn download_file(
@@ -433,7 +451,7 @@ async fn download_file(
 ) -> Result<()> {
     // QoS #3: abort early if drive went away
     if !drive_ok.load(Ordering::Relaxed) {
-        anyhow::bail!("Drive offline — skipping {}", url);
+        anyhow::bail!("Drive offline - skipping {}", url);
     }
 
     // QoS #2 + #5: if file already on disk, just re-verify and register hash
@@ -449,7 +467,7 @@ async fn download_file(
 
     // QoS #4: reject non-PDF content-type upfront
     if !content_type_is_pdf(&resp) {
-        anyhow::bail!("Non-PDF Content-Type for {} — skipping", url);
+        anyhow::bail!("Non-PDF Content-Type for {} - skipping", url);
     }
 
     // Stream into memory so we can hash + validate before writing
@@ -459,7 +477,7 @@ async fn download_file(
     // QoS #4: reject HTML masquerading as PDF
     if !is_valid_pdf(&bytes) {
         anyhow::bail!(
-            "Invalid PDF magic bytes for {} (got {:?}) — likely login page",
+            "Invalid PDF magic bytes for {} (got {:?}) - likely login page",
             url,
             &bytes[..bytes.len().min(8)]
         );
@@ -481,7 +499,7 @@ async fn download_file(
                         info!("=> hardlink (dedup): {}", dest.file_name().and_then(|n| n.to_str()).unwrap_or("?"));
                         return Ok(());
                     }
-                    Err(_) => { /* cross-device or other issue — fall through to normal write */ }
+                    Err(_) => { /* cross-device or other issue - fall through to normal write */ }
                 }
             }
         }
@@ -525,7 +543,7 @@ async fn download_file(
     Ok(())
 }
 
-// ── State I/O ─────────────────────────────────────────────────────────────────
+// -- State I/O -----------------------------------------------------------------
 
 async fn load_state(path: &Path) -> State {
     match fs::read_to_string(path).await {
@@ -543,7 +561,7 @@ async fn save_state(state: &State, path: &Path) -> Result<()> {
     Ok(())
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// -- Main ----------------------------------------------------------------------
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -559,7 +577,7 @@ async fn main() -> Result<()> {
 
     // QoS #3: verify drive is writable at startup
     check_drive(&dest_root).await
-        .context("Destination drive not writable at startup — aborting")?;
+        .context("Destination drive not writable at startup - aborting")?;
     info!("Drive OK. Destination: {}", dest_root.display());
 
     let state_path = PathBuf::from(STATE_FILE);
@@ -570,7 +588,7 @@ async fn main() -> Result<()> {
         info!("Fresh run");
     } else {
         info!(
-            "Resuming: {} items done, {} files done, {:.1}× delay",
+            "Resuming: {} items done, {} files done, {:.1}x delay",
             initial_state.done_items.len(),
             initial_state.done_files.len(),
             initial_multiplier,
@@ -583,7 +601,7 @@ async fn main() -> Result<()> {
 
     let client = Arc::new(HttpClient::new(args.delay, initial_multiplier)?);
 
-    // ── Phase 1: Discover collections ─────────────────────────────────────────
+    // -- Phase 1: Discover collections -----------------------------------------
     let collections = {
         let mut st = state.lock().await;
         if let Some(c) = st.collections.clone() {
@@ -597,7 +615,7 @@ async fn main() -> Result<()> {
         }
     };
 
-    // ── Phase 2: Enumerate items ───────────────────────────────────────────────
+    // -- Phase 2: Enumerate items -----------------------------------------------
     let all_items = {
         let st = state.lock().await;
         if let Some(i) = st.items.clone() {
@@ -605,7 +623,7 @@ async fn main() -> Result<()> {
             i
         } else {
             drop(st);
-            info!("Enumerating items across {} collections …", collections.len());
+            info!("Enumerating items across {} collections ...", collections.len());
             let mut all: Vec<Item>           = Vec::new();
             let mut seen: HashSet<String>    = HashSet::new();
             for coll in &collections {
@@ -624,7 +642,7 @@ async fn main() -> Result<()> {
         }
     };
 
-    // ── Phase 3 + 4: Download ─────────────────────────────────────────────────
+    // -- Phase 3 + 4: Download -------------------------------------------------
     let mp    = MultiProgress::new();
     let dl_pb = mp.add(ProgressBar::new(all_items.len() as u64));
     dl_pb.set_style(ProgressStyle::default_bar()
@@ -677,7 +695,9 @@ async fn main() -> Result<()> {
                         Ok(_) => {
                             let mut st = state.lock().await;
                             st.done_files.insert(bs.url);
-                            let _ = save_state(&st, &sp).await;
+                            if st.done_files.len() % 50 == 0 {
+                                let _ = save_state(&st, &sp).await;
+                            }
                         }
                         Err(e) => {
                             error!("[FAIL] {}: {}", bs.url, e);
@@ -685,7 +705,9 @@ async fn main() -> Result<()> {
 
                             // QoS #3: if drive is gone, persist state and halt
                             if !drive_ok.load(Ordering::Relaxed) {
-                                error!("Drive offline — halting. Re-run when drive is back.");
+                                let st = state.lock().await;
+                                let _ = save_state(&st, &sp).await;
+                                error!("Drive offline - halting. Re-run when drive is back.");
                                 return;
                             }
                         }
@@ -714,6 +736,7 @@ async fn main() -> Result<()> {
     dl_pb.finish_with_message("done");
 
     let st = state.lock().await;
+    let _ = save_state(&st, &state_path).await;
     let mb = bytes_done.load(Ordering::Relaxed) / (1024 * 1024);
     println!(
         "\n[OK] {} files downloaded  ({} MB this session)\n[OK] {} / {} items complete\nOutput: {}",
