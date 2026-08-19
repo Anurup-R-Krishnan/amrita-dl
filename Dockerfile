@@ -30,6 +30,7 @@ RUN useradd -m -u 1000 -U appuser
 WORKDIR /app
 
 # Copy built release binary and web static assets
+# Note: index.html is embedded into binary at compile time via rust-embed; /app/web is served at runtime via ServeDir
 COPY --from=builder --chown=appuser:appuser /app/target/release/server /app/server
 COPY --chown=appuser:appuser web /app/web
 
