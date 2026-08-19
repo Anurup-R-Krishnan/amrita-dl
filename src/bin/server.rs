@@ -929,7 +929,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let storage_public_url = std::env::var("STORAGE_PUBLIC_URL")
         .or_else(|_| std::env::var("OCI_PUBLIC_URL"))
-        .or_else(|_| std::env::var("B2_PUBLIC_URL"))
         .ok();
     if let Some(ref url) = storage_public_url {
         info!("Storage CDN redirect enabled: {url}");
