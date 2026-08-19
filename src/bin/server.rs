@@ -716,26 +716,36 @@ async fn handle_suggest(
     Ok(Json(suggestions))
 }
 
-fn resolve_pdf_path(rel_path: &str, state: &AppState) -> Option<PathBuf> {
-    if rel_path.contains("..") || rel_path.contains("\\..") {
+fn resolve_pdf_path(identifier: &str, state: &AppState) -> Option<PathBuf> {
+    if identifier.contains("..") || identifier.contains("\\..") {
         return None;
     }
 
-    let decoded = urlencoding::decode(rel_path).unwrap_or(std::borrow::Cow::Borrowed(rel_path));
-    let path_str = decoded.trim();
-    let rel_clean = path_str.trim_start_matches('/');
+    let decoded = urlencoding::decode(identifier).unwrap_or(std::borrow::Cow::Borrowed(identifier));
+    let clean = decoded.trim().trim_start_matches('/');
 
-    let candidates = [
-        PathBuf::from(path_str),
-        PathBuf::from(rel_clean),
-        state.raw_root.join(rel_clean),
-        state.indexed_root.join(rel_clean),
-        state.raw_root.join(path_str),
-        state.indexed_root.join(path_str),
-    ];
+    let conn = state.db_pool.get().ok()?;
+    let validated_path: String = if let Ok(id) = clean.parse::<i64>() {
+        conn.query_row(
+            "SELECT relative_path FROM papers WHERE id = ?1",
+            params![id],
+            |r| r.get(0),
+        ).ok()?
+    } else {
+        conn.query_row(
+            "SELECT relative_path FROM papers WHERE relative_path = ?1 OR original_path = ?1 LIMIT 1",
+            params![clean],
+            |r| r.get(0),
+        ).ok()?
+    };
 
     let raw_canonical = state.raw_root.canonicalize().ok();
     let indexed_canonical = state.indexed_root.canonicalize().ok();
+
+    let candidates = [
+        state.indexed_root.join(&validated_path),
+        state.raw_root.join(&validated_path),
+    ];
 
     for candidate in &candidates {
         if candidate.exists() {
@@ -761,40 +771,28 @@ async fn handle_pdf(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
-    let orig_path = if let Some(id_str) = params.get("id") {
-        if let Ok(id) = id_str.parse::<i64>() {
-            let conn = match state.db_pool.get() {
-                Ok(c) => c,
-                Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "Database pool error").into_response(),
-            };
-            let orig: Option<String> = conn
-                .query_row("SELECT original_path FROM papers WHERE id = ?1", params![id], |r| r.get(0))
-                .ok();
-            match orig {
-                Some(p) => p,
-                None => return (StatusCode::NOT_FOUND, "Paper ID Not Found").into_response(),
-            }
-        } else {
-            return (StatusCode::BAD_REQUEST, "Invalid paper ID").into_response();
-        }
+    let id_or_path = if let Some(id_str) = params.get("id") {
+        id_str.clone()
     } else if let Some(p) = params.get("path") {
         if p.contains("..") || p.contains("\\..") {
             return (StatusCode::BAD_REQUEST, "Invalid path parameter").into_response();
         }
-        p.to_string()
+        p.clone()
     } else {
         return (StatusCode::BAD_REQUEST, "Missing id or path parameter").into_response();
     };
 
+    let canonical = match resolve_pdf_path(&id_or_path, &state) {
+        Some(p) => p,
+        None => return (StatusCode::NOT_FOUND, "PDF File Not Found").into_response(),
+    };
+
     if let Some(ref storage_base) = state.storage_public_url {
         let clean_storage_base = storage_base.trim_end_matches('/');
-        let decoded = urlencoding::decode(&orig_path).unwrap_or(std::borrow::Cow::Borrowed(&orig_path));
-        let path_str = decoded.trim().trim_start_matches('/');
-        
-        let filename = std::path::Path::new(path_str)
+        let filename = canonical
             .file_name()
             .and_then(|n| n.to_str())
-            .unwrap_or(path_str);
+            .unwrap_or("document.pdf");
 
         let encoded_filename = urlencoding::encode(filename).to_string();
         let redirect_url = format!("{clean_storage_base}/{encoded_filename}");
@@ -805,11 +803,6 @@ async fn handle_pdf(
             return (StatusCode::FOUND, headers, ()).into_response();
         }
     }
-
-    let canonical = match resolve_pdf_path(&orig_path, &state) {
-        Some(p) => p,
-        None => return (StatusCode::NOT_FOUND, "PDF File Not Found").into_response(),
-    };
 
     match tokio_fs::read(&canonical).await {
         Ok(bytes) => {

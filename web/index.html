@@ -153,7 +153,7 @@
                                 <span class="font-mono font-bold text-xs bg-amrita-maroon text-white px-2 py-0.5 rounded shadow-sm shrink-0" x-text="item.course_code"></span>
                                 <span class="font-bold text-sm text-gray-900 group-hover:text-amrita-maroon transition-colors truncate" x-text="item.course_title"></span>
                             </div>
-                            <span class="text-xs text-gray-500 font-semibold shrink-0" x-text="`${item.program} - ${item.department}`"></span>
+                            <span class="text-xs text-gray-500 font-semibold shrink-0" x-text="`${item.program} • ${item.department}`"></span>
                         </div>
                     </template>
                 </div>
@@ -390,7 +390,7 @@
                         <h4 class="font-bold text-sm text-gray-900 leading-snug line-clamp-2 hover:text-amrita-maroon transition-colors cursor-pointer" @click="openPdfModal(item)" x-text="item.course_title"></h4>
                         <!-- Grouped Metadata Line (no repetitive icons) -->
                         <div class="text-xs text-gray-600 pt-2 border-t border-gray-100">
-                            <p class="truncate font-medium" x-text="`${item.department} - ${item.program} - ${item.semester}`"></p>
+                            <p class="truncate font-medium" x-text="`${item.department} · ${item.program} · ${item.semester}`"></p>
                         </div>
                     </div>
                     <!-- Card Actions: Ghost/Outline style, split button -->
@@ -434,7 +434,7 @@
                     <!-- Title -->
                     <h4 class="font-bold text-sm text-gray-900 truncate flex-1 cursor-pointer hover:text-amrita-maroon transition-colors" @click="openPdfModal(item)" x-text="item.course_title"></h4>
                     <!-- Metadata -->
-                    <span class="text-xs text-gray-500 font-medium hidden lg:block truncate max-w-[250px]" x-text="`${item.department} - ${item.program}`"></span>
+                    <span class="text-xs text-gray-500 font-medium hidden lg:block truncate max-w-[250px]" x-text="`${item.department} · ${item.program}`"></span>
                     <!-- Badges -->
                     <div class="flex items-center gap-1.5 shrink-0">
                         <span class="bg-amber-50 text-amber-800 border border-amber-200/60 font-semibold text-[11px] px-2 py-0.5 rounded" x-text="item.exam_type"></span>
@@ -554,7 +554,7 @@
             <div class="bg-amrita-maroon text-white p-4 flex items-center justify-between border-b-2 border-amrita-gold shrink-0">
                 <div class="truncate mr-4">
                     <h3 class="font-bold text-base text-white truncate" x-text="activePdf ? `${activePdf.course_code} - ${activePdf.course_title}` : ''"></h3>
-                    <p class="text-xs text-white/80 font-medium truncate" x-text="activePdf ? `${activePdf.department} - ${activePdf.program} - ${activePdf.year}` : ''"></p>
+                    <p class="text-xs text-white/80 font-medium truncate" x-text="activePdf ? `${activePdf.department} • ${activePdf.program} • ${activePdf.year}` : ''"></p>
                 </div>
                 <div class="flex items-center space-x-3 shrink-0">
                     <template x-if="activePdf">
@@ -581,11 +581,11 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div class="flex items-center space-x-2 text-xs font-bold text-amrita-maroon uppercase tracking-wider">
                 <span>AMRITA VISHWA VIDYAPEETHAM</span>
-                <span class="text-gray-300">-</span>
+                <span class="text-gray-300">•</span>
                 <span class="text-gray-500 font-medium normal-case tracking-normal">Centralized Examination Paper Archive</span>
             </div>
-            <div class="text-xs text-gray-500 font-medium" x-text="`(c) ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham. All rights reserved.`">
-                (c) 2026 Amrita Vishwa Vidyapeetham. All rights reserved.
+            <div class="text-xs text-gray-500 font-medium" x-text="`© ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham. All rights reserved.`">
+                © 2026 Amrita Vishwa Vidyapeetham. All rights reserved.
             </div>
         </div>
     </footer>
@@ -704,20 +704,12 @@
                     return '';
                 },
 
-                pdfUrl(itemOrIdOrPath) {
-                    if (!itemOrIdOrPath) return '';
-                    if (typeof itemOrIdOrPath === 'object') {
-                        if (itemOrIdOrPath.id) return `${this.getApiBase()}/api/pdf?id=${itemOrIdOrPath.id}`;
-                        if (itemOrIdOrPath.relative_path) return `${this.getApiBase()}/api/pdf?path=${encodeURIComponent(itemOrIdOrPath.relative_path)}`;
+                pdfUrl(itemOrId) {
+                    if (!itemOrId) return '';
+                    if (typeof itemOrId === 'object' && itemOrId.id) {
+                        return `${this.getApiBase()}/api/pdf?id=${itemOrId.id}`;
                     }
-                    if (typeof itemOrIdOrPath === 'number') {
-                        return `${this.getApiBase()}/api/pdf?id=${itemOrIdOrPath}`;
-                    }
-                    const val = String(itemOrIdOrPath);
-                    if (/^\d+$/.test(val)) {
-                        return `${this.getApiBase()}/api/pdf?id=${val}`;
-                    }
-                    return `${this.getApiBase()}/api/pdf?path=${encodeURIComponent(val)}`;
+                    return `${this.getApiBase()}/api/pdf?id=${itemOrId}`;
                 },
 
                 async downloadBatch() {

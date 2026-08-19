@@ -719,7 +719,9 @@ async fn main() -> Result<()> {
                     st.done_items.insert(item.handle.clone());
                     // Persist current multiplier so resume keeps the same rate
                     st.delay_multiplier = *client.arc_multiplier().lock().await;
-                    let _ = save_state(&st, &sp).await;
+                    if st.done_items.len() % 50 == 0 {
+                        let _ = save_state(&st, &sp).await;
+                    }
                 }
 
                 pb.inc(1);
