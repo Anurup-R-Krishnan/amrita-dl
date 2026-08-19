@@ -11,6 +11,14 @@ path = "src/main.rs"
 name = "server"
 path = "src/bin/server.rs"
 
+[[bin]]
+name = "index"
+path = "src/bin/index.rs"
+
+[[bin]]
+name = "audit"
+path = "src/bin/audit.rs"
+
 [dependencies]
 # async runtime
 tokio          = { version = "1",  features = ["full"] }

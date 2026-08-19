@@ -1,0 +1,29 @@
+=================================================================
+AMRITA-DL PDF DATASET RUST PHYSICAL INTEGRITY AUDIT REPORT
+=================================================================
+Execution Duration: 230.12s
+
+Raw Source Directory: /run/media/anuruprkris/DATA/amrita-exam-papers
+Raw PDF File Count: 19600
+Raw Total Size: 5719483807 bytes (5.327 GiB / 5.719 GB)
+Raw Unique Inodes: 19600
+
+Indexed Serving Directory: /run/media/anuruprkris/DATA/amrita-exam-papers-indexed
+Indexed PDF File Count: 29678
+Indexed Total Size: 9823865112 bytes (9.149 GiB / 9.824 GB)
+Valid '%PDF-' Magic Headers: 29678 / 29678 (100.0%)
+Invalid Headers / Corrupted: 0
+Zero-Byte Files: 0
+
+SQLite Database (index.db):
+Total Rows: 19600
+Matched Physical Files: 19600
+Missing Physical Files: 0
+
+JSON Metadata Dump (index.json):
+Total Entries: 19600
+Matched Physical Files: 19600
+Missing Physical Files: 0
+
+AUDIT STATUS: PASSED SUCCESSFULLY - 100% OF ALL 29678 PDF FILES VERIFIED
+=================================================================
