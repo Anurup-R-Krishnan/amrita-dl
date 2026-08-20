@@ -11,3 +11,5 @@ jobs:
       pull-requests: write
     steps:
       - uses: peakoss/anti-slop@v0.3.0
+        with:
+          exempt-author-association: "none"
