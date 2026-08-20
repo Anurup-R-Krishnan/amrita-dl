@@ -1,3 +1,1 @@
-# Cloudflare Pages Proxy Redirects
-# Proxy API calls directly to OCI API backend while bypassing edge cache
-/api/* https://api.amritapapers.dev/api/:splat 200!
+/api/* http://140.245.237.213/api/:splat 200
