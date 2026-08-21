@@ -1,9 +1,5 @@
 name = "amritapapers"
-pages_build_output_dir = "web"
-compatibility_date = "2026-08-18"
+main = "worker/index.js"
+compatibility_date = "2024-01-01"
 
-# Cloudflare Pages deployment configuration for amritapapers.pages.dev
 [vars]
-ENVIRONMENT = "production"
-# API endpoints on amritapapers.pages.dev are automatically proxied to Render via web/_redirects
-# Target Backend: https://amrita-papers.onrender.com

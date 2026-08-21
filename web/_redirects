@@ -1,1 +1,2 @@
-/api/* http://68.233.111.2/api/:splat 200
+# SPA fallback - all unmatched routes serve index.html
+/* /index.html 200
