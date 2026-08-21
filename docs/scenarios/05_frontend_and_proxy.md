@@ -1,45 +1,103 @@
 # Frontend Proxying & Edge Handlers
 
 **29. API Parsing HTML Errors**
-*The Pitfall (Deep Context):* Everything looked perfect in local testing. We deployed the React/Alpine SPA directly onto Cloudflare Pages. Our frontend users typed query data into the search bar, expecting instant JSON results. Instead, the entire frontend violently crashed, throwing `SyntaxError: Unexpected token < in JSON at position 0`. 
-We blindly assumed our proxies were working. We executed a raw `curl` into the React DOM and discovered, to our absolute horror, that Cloudflare Pages had intrinsically dropped our backend API proxy queries entirely. Instead of routing traffic into our sub-millisecond SQLite backend, Cloudflare intercepted the `/api/search` requests and fed the user the `index.html` Blob instead. The frontend was literally trying to parse the raw HTML code of its own homepage as a JSON database array.
 
-*How we faced it:* We aggressively verified backend array outputs securely, proving the Rust server was alive. We then isolated the frontend logic, stopping any browser-based debugging, and relied purely on native Unix `curl` commands to test the physical headers of the proxy responses until we forced Cloudflare to respect the JSON boundaries.
--> *Verify: `curl -I https://exampapersamrita.pages.dev/api/status` returns strictly `application/json` content-types validating true backend isolation.*
+*The Pitfall (Deep Context):*
+Everything looked perfect in local testing. We deployed the SPA onto Cloudflare Pages. Users typed queries into the search bar expecting instant JSON results. Instead the entire frontend crashed, throwing `SyntaxError: Unexpected token '<' in JSON at position 0`.
+
+We blindly assumed our proxy was working. Running a raw `curl` against the deployed endpoint revealed the horror: Cloudflare Pages had dropped our backend API proxy entirely. Instead of routing `/api/search` traffic into our sub-millisecond SQLite backend, Cloudflare intercepted the request and served the `index.html` blob instead. The frontend was literally trying to parse the raw HTML of its own homepage as a JSON database array. The `<` at position 0 was the first character of `<!DOCTYPE html>`.
+
+*How we faced it:*
+We stopped browser-based debugging completely. Browsers hide headers, cache aggressively, and follow redirects silently, all of which masked the true failure. We relied purely on Unix `curl` commands to inspect the physical response headers:
+```bash
+curl -i https://exampapersamrita.pages.dev/api/status
+```
+This showed `content-type: text/html` where `application/json` belonged, proving the failure was at the Edge routing layer, not the Rust backend. We then verified the backend itself was alive by curling it directly through the tunnel. With the layer of failure isolated, we could fix the actual broken component instead of guessing.
+
+-> *Verify: `curl -I https://exampapersamrita.pages.dev/api/status` returns `content-type: application/json`.*
 
 
 **30. Pages Catch-All Override**
-*The Pitfall (Deep Context):* We eventually realized exactly *why* our JSON payloads had magically turned into HTML blobs. Our original routing mechanism relied completely on a standard `_redirects` file, instructing Cloudflare to forward ` /api/* ` to the Oracle VM. 
-What we didn't document was that Cloudflare Pages uses native SPA (Single Page Application) override patterns. Because we enabled SPA routing (so that frontend React router links wouldn't 404), Cloudflare prioritized the SPA catch-all rule *above* our `_redirects` file. It completely ignored our API proxy and evaluated `/api/*` as a missing frontend page, unconditionally falling back to serving `index.html`. Our routing was dead by design.
 
-*How we faced it:* We had to aggressively abandon standard static proxy files. We deleted `_redirects` entirely. Instead, we substituted active Cloudflare edge programmatic interceptors (Cloudflare Functions) which execute *before* the static SPA resolution, completely safely bypassing the SPA default catch-all dynamically.
--> *Verify: `ls _redirects` generates a 'No such file' exception proving static overrides exist completely nullified.*
+*The Pitfall (Deep Context):*
+We eventually realized exactly why our JSON payloads had turned into HTML blobs. Our original routing mechanism relied on a standard `_redirects` file instructing Cloudflare to forward `/api/*` to the Oracle VM.
+
+What we had not documented was that Cloudflare Pages uses SPA (Single Page Application) catch-all patterns. Because we enabled SPA routing so that frontend router links would not 404, Cloudflare prioritized the SPA catch-all rule above our `_redirects` file. It evaluated `/api/*` as a missing frontend page and unconditionally fell back to serving `index.html`. Our API routing was dead by design, silently and with no error anywhere in the deploy logs.
+
+*How we faced it:*
+We abandoned static proxy files entirely. We deleted `_redirects` from the repository and substituted programmatic Edge interceptors: Cloudflare Pages Functions. Functions execute before static asset resolution, which means they preempt the SPA catch-all instead of competing with it. API routes became code, not config, and code always wins the routing order.
+
+-> *Verify: `ls _redirects` returns `No such file or directory` in the deploy root, and `/api/*` requests never return HTML.*
 
 
 **31. Developing Full Cloudflare Functions**
-*The Pitfall (Deep Context):* Throwing away `_redirects` meant we had to construct a Cloudflare Page Function from scratch to bridge the gap. Programming Edge functions to explicitly bridge our TLS tunnels spawned nightmare architectural issues. We attempted to merge fetch queries across `trycloudflare.com` setups, but the browser natively blocked them. Trying to proxy raw HTTP fetch requests via a serverless function introduced massive cross-origin complexities that broke CORS mechanically.
 
-*How we faced it:* We engineered surgical wildcard routes using `[[path]].js`. Acting inherently at the Edge, this function intercepts the `/api/` path, extracts the query, and executes an explicit Node `fetch()` destination dynamically onto the TLS tunnel. By acting as a literal middleman on the Edge, it automatically overrides local browser CORS states flawlessly, making the browser believe it is querying the same exact domain.
--> *Verify: `cat functions/api/[[path]].js` explicitly maps proxy definitions natively bypassing local states perfectly.*
+*The Pitfall (Deep Context):*
+Throwing away `_redirects` meant we had to construct a Cloudflare Pages Function from scratch to bridge the gap. Programming Edge functions to bridge our TLS tunnel spawned a fresh set of architectural issues. We attempted to merge fetch queries across ephemeral `trycloudflare.com` hosts, but the browser blocked them as cross-origin. Proxying raw fetch requests through a serverless function introduced CORS complexities that broke the browser mechanically.
+
+*How we faced it:*
+We engineered a wildcard route using `functions/api/[[path]].js`. Acting at the Edge, this function intercepts every `/api/` path, extracts the query, and executes an explicit `fetch()` toward the TLS tunnel hostname. Because the function runs on the same domain the browser is already talking to, the browser believes it is querying the exact same origin. CORS ceases to exist as a concept for the frontend:
+```js
+export async function onRequest(context) {
+  const url = new URL(context.request.url);
+  return fetch(`https://<tunnel-host>${url.pathname}${url.search}`, context.request);
+}
+```
+The Edge function is a literal same-origin middleman.
+
+-> *Verify: `cat functions/api/[[path]].js` shows the proxy definition, and a browser search returns results with no CORS errors in the console.*
 
 
 **32. Functions Directory Obfuscation**
-*The Pitfall (Deep Context):* After writing the incredibly clever `[[path]].js` function, we ran Wrangler to deploy it, only to find the Edge API completely 404'ing. We scoured the logs and found that Wrangler had completely ignored the code we just wrote. 
-We had accidentally grouped our logic inside the `web/functions/` directory, treating it like frontend code. Wrangler, however, rigidly respects root definitions natively. It requires the `functions/` directory to exist at the absolute root of the working repository, entirely independent of the `web/` payload. It silently dropped our buried architecture gracefully.
 
-*How we faced it:* We structurally migrated the codebase with `mv web/functions functions/`, deploying exactly at the repository node boundary. By abandoning the nested frontend structure, we safely bypassed the obfuscation, Bridging Cloudflare's rigid deployment requirements cleanly.
--> *Verify: `ls -ld functions` maps successfully inside the root tree avoiding nested SPA obfuscations completely.*
+*The Pitfall (Deep Context):*
+After writing the clever `[[path]].js` function, we ran Wrangler to deploy it, only to find the Edge API still 404ing. We scoured the logs and discovered Wrangler had completely ignored the code we just wrote.
+
+We had accidentally grouped our logic inside `web/functions/`, treating it like frontend code. Wrangler rigidly respects root definitions: it requires the `functions/` directory to exist at the absolute root of the deployed repository, entirely independent of the `web/` static payload directory. It silently dropped our buried architecture without a single warning in the build output. No error, no log line, just a missing route.
+
+*How we faced it:*
+We structurally migrated the code with `mv web/functions functions/`, placing it exactly at the repository root boundary. By conforming to Cloudflare's rigid directory contract instead of fighting it, the deployment immediately picked up the function and the API route went live on the next deploy.
+
+-> *Verify: `ls -ld functions` succeeds at the repo root, and `functions/api/[[path]].js` exists at that exact level.*
 
 
 **33. Pre-flight CORS Restraints (OPTIONS)**
-*The Pitfall (Deep Context):* Although Edge functions solved the direct fetch, Chrome and Firefox aggressively slaughtered standard frontend API integrations because of pre-flight checks. Before a browser sends a POST or a complex GET, it sends an `OPTIONS` request. Our Cloudflare Function was blindly proxying this `OPTIONS` request to the Rust backend, which had no idea how to handle it. The intercepted response lacked the explicit `Access-Control-Allow-Origin` headers, heavily blocking execution safely and killing the user's search query before it even left the browser.
 
-*How we faced it:* We structurally overhauled the proxy intercepts within `[[path]].js`. We injected an arbitrary header check: if the request method is `OPTIONS`, the script instantly returns a strict HTTP `204 No Content` response injected with `Access-Control-Allow-Origin: *`. This satisfies the browser's pre-flight paranoia natively, flawlessly overriding tracking bounds dynamically and accurately.
--> *Verify: `curl -X OPTIONS -I https://exampapersamrita.pages.dev/api/` replies exactly 204 explicitly confirming CORS bypass configurations safely.*
+*The Pitfall (Deep Context):*
+Although Edge functions solved the direct fetch, Chrome and Firefox still slaughtered standard frontend API integrations because of pre-flight checks. Before a browser sends a POST or a complex GET with custom headers, it sends an `OPTIONS` request first. Our Cloudflare Function blindly proxied this `OPTIONS` request to the Rust backend, which had no handler for it. The intercepted response lacked the explicit `Access-Control-Allow-Origin` header. The browser blocked the actual search request before it ever left the machine, and the user saw nothing but a silent failure.
+
+*How we faced it:*
+We overhauled the proxy intercept inside `[[path]].js` with an explicit method check: if the request method is `OPTIONS`, the function instantly returns HTTP `204 No Content` with `Access-Control-Allow-Origin: *` and the allowed methods/headers attached. This satisfies the browser's pre-flight paranoia at the Edge without ever touching the Rust backend:
+```js
+if (context.request.method === "OPTIONS") {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    },
+  });
+}
+```
+The backend never needs to know CORS exists.
+
+-> *Verify: `curl -X OPTIONS -I https://exampapersamrita.pages.dev/api/` replies exactly `HTTP/2 204` with `access-control-allow-origin: *` in the headers.*
 
 
 **34. Fallback API Parsing Toggles**
-*The Pitfall (Deep Context):* While developing locally, the frontend execution logic parsed API URL paths using a global `getApiBase()` utility. But our string concatenation was flawed. It formulated duplicate forward slashes (e.g., `//api//search`), which mapped completely broken paths organically. In local DEV environments this often resolves gracefully, but in Cloudflare Edge route definitions, double slashes instantly throw unexpected HTTP 400 exceptions mapping securely to 404 missing resource errors.
 
-*How we faced it:* We stripped away the arbitrary conditional checks inside the frontend `getApiBase()` executing exact string manipulation correctly. By strictly verifying zero-length URL injection appending, we guaranteed exact single-slash resolutions securely, bridging network setups uniformly.
--> *Verify: Frontend network logs load exact `/api/search` endpoints explicitly dropping incorrect double forward-slash mapping errors.*
+*The Pitfall (Deep Context):*
+While developing locally, the frontend parsed API URL paths using a global `getApiBase()` utility. Our string concatenation was flawed: it formulated duplicate forward slashes, producing paths like `//api//search`. Local dev environments resolve these gracefully. But Cloudflare Edge route definitions treat double slashes as distinct paths, instantly throwing HTTP 400s that map to missing-resource 404s. The same code worked on our laptops and died in production, the worst class of bug.
+
+*How we faced it:*
+We stripped the arbitrary conditional checks inside `getApiBase()` and replaced them with exact string manipulation. By strictly verifying zero-length segment joins, we guaranteed single-slash resolution regardless of environment:
+```js
+const base = import.meta.env.VITE_API_BASE ?? "";
+export function getApiBase() {
+  return base.replace(/\/+$/, "");
+}
+```
+The base never carries a trailing slash, the route always carries exactly one leading slash, and the concatenation can no longer produce doubles.
+
+-> *Verify: Browser devtools network tab shows requests hitting exactly `/api/search` with a single slash, and no 400/404s appear for API calls.*
