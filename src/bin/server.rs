@@ -505,16 +505,18 @@ async fn handle_search(
     // 2. Fetch paginated result records
     let mut sql = format!("SELECT p.id, p.course_code, p.course_title, p.department, p.program, p.semester, p.year, p.exam_type, p.course_category, p.course_level, p.original_path, COALESCE(p.relative_path, '') FROM papers p {where_clause}");
 
-    if has_text_q {
-        sql.push_str(" ORDER BY bm25(papers_fts, 10.0, 5.0, 2.0, 1.0, 1.0, 1.0, 1.0) ASC LIMIT ? OFFSET ?");
-    } else {
-        match params.sort.as_deref() {
-            Some("code_asc") => sql.push_str(" ORDER BY p.course_code ASC LIMIT ? OFFSET ?"),
-            Some("year_asc") => sql.push_str(" ORDER BY p.year ASC, p.course_code ASC LIMIT ? OFFSET ?"),
-            Some("title_asc") => sql.push_str(" ORDER BY p.course_title ASC LIMIT ? OFFSET ?"),
-            _ => sql.push_str(" ORDER BY p.year DESC, p.course_code ASC LIMIT ? OFFSET ?"),
-        }
-    }
+    // Explicit sort always wins. bm25 relevance is only the fallback when the user
+    // has not chosen a sort option. p.id appended to every branch as a deterministic
+    // tiebreaker so pagination boundaries stay stable across queries.
+    let order_by = match (has_text_q, params.sort.as_deref()) {
+        (_, Some("code_asc")) => " ORDER BY p.course_code ASC, p.id ASC ",
+        (_, Some("year_asc")) => " ORDER BY p.year ASC, p.course_code ASC, p.id ASC ",
+        (_, Some("title_asc")) => " ORDER BY p.course_title ASC, p.id ASC ",
+        (false, _) => " ORDER BY p.year DESC, p.course_code ASC, p.id ASC ",
+        (true, _) => " ORDER BY bm25(papers_fts, 10.0, 5.0, 2.0, 1.0, 1.0, 1.0, 1.0) ASC, p.id ASC ",
+    };
+    sql.push_str(order_by);
+    sql.push_str(" LIMIT ? OFFSET ?");
 
     let mut stmt = conn
         .prepare(&sql)
