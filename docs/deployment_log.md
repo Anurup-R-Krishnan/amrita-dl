@@ -1,4 +1,4 @@
-# 📝 Live Deployment Log & Critical Architecture Fixes
+#  Live Deployment Log & Critical Architecture Fixes
 
 This document serves to extensively accurately record the exact deployment steps, specifically detailing the unexpected architecture mismatches and how they were dynamically resolved for the Oracle Linux target on August 20.
 
@@ -29,3 +29,13 @@ Because the Oracle API server was bound to 140.245.237.213, local CORS constrain
 2. The entire `web/` folder was directly uploaded utilizing `wrangler pages deploy --project-name exampapersamrita` via Direct Upload (bypassing GitHub temporarily for speed).
 
 *Result:* Browsing the Cloudflare edge automatically hits Oracle servers invisibly.
+
+## 5. ARM64 Capacity Starvation (Re-Pivot)
+After attempting to fix the `x86_64` to `AARCH64` translation, the `ap-hyderabad-1` data center refused provisioning of the `VM.Standard.A1.Flex` shape with `Out of host capacity`. This is severely common for Oracle's free ARM tier.
+To guarantee deployment today, the setup pivoted *back* to the `VM.Standard.E2.1.Micro`. 
+
+## 6. OOM Mitigations (Swap and Throttling)
+To prevent the micro instance from dropping SSH sessions or Kernel Panicking entirely when compiling `axum`/`tokio` locally:
+1. Natively injected a 4 GB Swap memory fallback via `mkswap`.
+2. Halted aggressive CPU multi-threading by appending `-j 1` to strictly force single-core `cargo` pipelines.
+3. Decoupled process life-cycling by encapsulating it cleanly internally with `nohup ... &`.

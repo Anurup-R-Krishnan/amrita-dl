@@ -1,4 +1,4 @@
-# 🌩️ Production Deployment Guide (Oracle Linux + Cloudflare)
+# ️ Production Deployment Guide (Oracle Linux + Cloudflare)
 
 This document contains the exact, copy-pasteable commands customized for your active Oracle Cloud VM (**IP: 140.245.237.213**).
 

@@ -1,4 +1,4 @@
-# 🛠️ Operations & Maintenance Guide
+# ️ Operations & Maintenance Guide
 
 ## 1. Local Development (`run_local.sh`)
 

@@ -19,6 +19,14 @@ path = "src/bin/index.rs"
 name = "audit"
 path = "src/bin/audit.rs"
 
+[[bin]]
+name = "db_sync"
+path = "src/bin/db_sync.rs"
+
+[[bin]]
+name = "upload"
+path = "src/bin/upload.rs"
+
 [dependencies]
 # async runtime
 tokio          = { version = "1",  features = ["full"] }
@@ -60,6 +68,6 @@ tower-http        = { version = "0.5", features = ["cors", "fs", "compression-fu
 
 [profile.release]
 opt-level     = 3
-lto           = true
-codegen-units = 1
+lto           = false
+codegen-units = 16
 strip         = true

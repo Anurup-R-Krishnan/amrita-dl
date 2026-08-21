@@ -1,4 +1,4 @@
-# 🏗️ Architecture & Data Flow Reference
+# ️ Architecture & Data Flow Reference
 
 This document serves as the absolute source of truth for the Amrita Exam Papers search engine architecture, having been verified against the live Rust codebase and cloud configuration.
 

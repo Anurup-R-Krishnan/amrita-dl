@@ -1,4 +1,4 @@
-# 🐙 Automated CI/CD (GitHub Actions)
+#  Automated CI/CD (GitHub Actions)
 
 We have configured a fully automated pipeline using **GitHub Actions**. Whenever you push code to the `main` branch, it will automatically deploy your latest `web/` folder to Cloudflare Pages.
 
