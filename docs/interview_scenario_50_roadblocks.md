@@ -12,36 +12,36 @@ Below is the exact transcript mock-up detailing all 50 roadblocks encountered, a
 **Interviewer: We provisioned an Oracle Free Tier VM (1GB RAM). How did you prevent Rust compilation from crashing the server?**
 
 **Candidate:**
-1. **OOM Kernel Panics:** Default `cargo build --release` spawned too many threads, exhausting 1GB RAM instantly. I solved this by throttling concurrency strictly via `cargo build -j 1`.
-2. **Link Time Optimization Memory Spikes:** The `[profile.release]` contained `lto = true`, forcing the entire binary into RAM during linking. I disabled this (`lto = false`).
-3. **Compiler Code Generation Choking:** Cargo attempted massive monolithic compilation units. I partitioned the load by injecting `codegen-units = 16` into `Cargo.toml`.
-4. **Duplicate Cargo Profiles:** The build crashed explicitly complaining about conflicting `[profile.release]` blocks. I audited the configuration and merged the duplicate tables.
-5. **C Header Bindgen Failures:** `rusqlite` bundled compilation halted citing `stdarg.h not found`. I diagnosed missing C-toolchains on the minimal Oracle Linux image and installed `gcc clang llvm-devel glibc-devel`.
-6. **Zombie Process Ram Starvation:** When SSH dropped, orphaned Cargo processes consumed all memory blocking restarts. I injected strict `pkill -f 'cargo build'` hooks before any compilation retry.
+1. **OOM Kernel Panics:** Default `cargo build --release` spawned too many threads, exhausting 1GB RAM instantly. Throttled concurrency strictly via `cargo build -j 1`.
+2. **Link Time Optimization Memory Spikes:** The `[profile.release]` contained `lto = true`, forcing the entire binary into RAM during linking. Disabled (`lto = false`).
+3. **Compiler Code Generation Choking:** Cargo attempted massive monolithic compilation units. Injected `codegen-units = 16` into `Cargo.toml`.
+4. **Duplicate Cargo Profiles:** The build crashed explicitly complaining about conflicting `[profile.release]` blocks. Merged the duplicate tables.
+5. **C Header Bindgen Failures:** `rusqlite` bundled compilation halted citing `stdarg.h not found`. Installed missing C-toolchain dependencies: `gcc clang llvm-devel glibc-devel`.
+6. **Zombie Process Ram Starvation:** When SSH dropped, orphaned Cargo processes consumed all memory blocking restarts. Injected strict `pkill -f 'cargo build'` hooks before any compilation retry.
 
 ## Part 2: Deployment Orchestration & Execution
 
 **Interviewer: Once compiled, how did you handle migrating the raw code and keeping the application running without an orchestrator like Kubernetes?**
 
 **Candidate:**
-7. **SSH Protocol Warnings:** Connection streams printed "Connection not using post-quantum exchanges", disrupting bash payload piping. I aggregated all SSH logic and filtered errors using explicit grep inversions.
-8. **Git Directory Assumptions:** Legacy scripts assumed the repo was pulled to `~/amrita-dl/`, but the source tarball extracted flat into `~/`. I audited `ls -la ~` and re-mapped all paths relative to the user root.
-9. **Missing Tarball Assets:** The frontend `web/index.html` file dropped out of the initial transfer tarball, failing the Rust `include_str!` macro. I re-bundled `source.tar.gz` explicitly mapping the `web/` node.
-10. **Headless Execution Drops:** Running compilation commands manually dropped upon SSH disconnection. I implemented `nohup cargo build > build.log &` storing the PID dynamically to `build.pid`.
-11. **Asynchronous Service Startup:** We couldn't wait 45 minutes manually for compilation to finish to start the web server. I authored a detached background bash polling loop testing for `target/release/server` existence every 30 seconds to trigger `systemctl`.
-12. **Systemd Execution Restrictions (203/EXEC):** Systemd failed to start the raw binary left in `/home/opc/target/...` throwing `Permission Denied` due to SELinux user-space restrictions. I relocated the executable to `/usr/local/bin/amrita-server`.
-13. **Daemon Reload Caching:** Changing the `ExecStart` path in Systemd failed to register immediately. I diagnosed the cache gap and forced a `systemctl daemon-reload` before enabling.
+7. **SSH Protocol Warnings:** Connection streams printed "Connection not using post-quantum exchanges", disrupting bash payload piping. Aggregated SSH logic filtering errors using explicit grep inversions.
+8. **Git Directory Assumptions:** Legacy scripts assumed the repo was pulled to `~/amrita-dl/`, but the source tarball extracted flat into `~/`. Re-mapped all paths relative to the user root.
+9. **Missing Tarball Assets:** The frontend `web/index.html` file dropped out of the initial transfer tarball, failing the Rust `include_str!` macro. Re-bundled `source.tar.gz` explicitly mapping the `web/` node.
+10. **Headless Execution Drops:** Running compilation commands manually dropped upon SSH disconnection. Implemented `nohup cargo build > build.log &` storing the PID dynamically to `build.pid`.
+11. **Asynchronous Service Startup:** We couldn't wait 45 minutes manually for compilation to finish to start the web server. Authored detached polling loop testing for `target/release/server` existence every 30 seconds to trigger `systemctl`.
+12. **Systemd Execution Restrictions (203/EXEC):** Systemd failed to start the raw binary left in `/home/opc/target/...` throwing `Permission Denied` due to SELinux user-space restrictions. Relocated executable to `/usr/local/bin/amrita-server`.
+13. **Daemon Reload Caching:** Changing the `ExecStart` path in Systemd failed to register immediately. Forced `systemctl daemon-reload` before enabling.
 
 ## Part 3: Overcoming Data Integrity and Shell Errors
 
 **Interviewer: How did you manage migrating legacy Python pipelines into pure Rust logic for index syncing?**
 
 **Candidate:**
-14. **Legacy Perfect Sync DB Locking:** `perfect_sync.py` failed during multi-threaded writes returning "database is locked". I rewrote the integration into `db_sync.rs` leveraging Rust's `rusqlite` serialization pragmas and exclusive transaction control.
-15. **Rclone Shell Injection Vulnerabilities:** `upload_pdfs.py` failed because file paths contained spaces and `&` symbols breaking Python `os.system`. I rewrote to `upload.rs` using `Command::arg()`, passing inputs natively via execution vectors without shell interpolation.
-16. **Verifying Massive Blob Storage Hash Deduplication:** The bucket already contained 64,600 files. Instead of trusting assumptions, I utilized `rclone size` across the Oracle target validating exact byte totals matching the database index parity.
-17. **SQLite Index Portability Risks:** Migrating a 13MB `index.db` via standard cloud volumes risked corruption. I enacted direct SCP transfers via the validated local machine bypass.
-18. **Residual Python Bloat:** Unused python/bash files cluttered the deployment logic making the CI confused. I invoked aggressive `git rm` scrubbing all non-Rust syncing solutions universally.
+14. **Legacy Perfect Sync DB Locking:** `perfect_sync.py` failed during multi-threaded writes returning "database is locked". Rewrote integration into `db_sync.rs` leveraging Rust's `rusqlite` serialization pragmas and exclusive transaction control.
+15. **Rclone Shell Injection Vulnerabilities:** `upload_pdfs.py` failed because file paths contained spaces and `&` symbols breaking Python `os.system`. Rewrote to `upload.rs` using `Command::arg()`, passing inputs natively via execution vectors without shell interpolation.
+16. **Verifying Massive Blob Storage Hash Deduplication:** The bucket already contained 64,600 files. Utilized `rclone size` across the Oracle target validating exact byte totals matching the database index parity.
+17. **SQLite Index Portability Risks:** Migrating a 13MB `index.db` via standard cloud volumes risked corruption. Enacted direct SCP transfers via the validated local machine bypass.
+18. **Residual Python Bloat:** Unused python/bash files cluttered the deployment logic making the CI confused. Invoked `git rm` scrubbing all non-Rust syncing solutions universally.
 
 ## Part 4: Navigating Network & Origin Restrictions
 
@@ -49,10 +49,10 @@ Below is the exact transcript mock-up detailing all 50 roadblocks encountered, a
 
 **Candidate:**
 19. **Firewalld IP Drops:** Internal `curl` on the VM resolved JSON, but eternal IPs dropped. Checked `sudo firewall-cmd --list-ports` indicating Port 80 was sealed at the Oracle subnet layer.
-20. **Restricted Edge Origin Rules:** Standard Cloudflare Pages `_redirects` dropped proxy routing to `http://68.233.111.2`. I audited Cloudflare headers and discovered Pages 200 proxies require standard HTTPS compliant target endpoints.
+20. **Restricted Edge Origin Rules:** Standard Cloudflare Pages `_redirects` dropped proxy routing to `http://68.233.111.2`. Discovered Pages 200 proxies require standard HTTPS compliant target endpoints.
 21. **Cloudflare RPM Distribution 404s:** Standard `dnf` and `rpm` package requests for `cloudflared` failed retrieving obsolete repository links. Pulled native AMD64 compiled binaries natively over `wget/curl`.
-22. **Privileged Escalation of Daemons:** The `cloudflared` executable was barred from opening port configurations internally. I pushed the binary to `/usr/local/bin` and invoked `chmod +x` enforcing root-level capability mappings.
-23. **Temporary Tunnel Output Parsing:** Ephemeral `.trycloudflare.com` URLs generated asynchronously in logs. I constructed an exact `grep -o 'https://[a-z0-9-]*\.trycloudflare\.com'` syntax fetching dynamic routing URLs blindly.
+22. **Privileged Escalation of Daemons:** The `cloudflared` executable was barred from opening port configurations internally. Pushed binary to `/usr/local/bin` and invoked `chmod +x` enforcing root-level capability mappings.
+23. **Temporary Tunnel Output Parsing:** Ephemeral `.trycloudflare.com` URLs generated asynchronously in logs. Constructed exact `grep -o 'https://[a-z0-9-]*\.trycloudflare\.com'` syntax fetching dynamic routing URLs blindly.
 24. **Cloudflare Worker 1003 Banning:** A testing Cloudflare worker failed explicitly with error 1003 restricting cross-zone unencrypted origins. This necessitated adopting the Cloudflare Tunnel bridge exclusively.
 25. **Named Tunnel Creation Collisions:** API requested the establishment of a static tunnel `amrita-api` which crashed citing duplicate naming entries. Retrospectively extracted the existing `a0a5a18a-fc04...` UUID instead.
 26. **Named Tunnel Unauthenticated Ingress:** Starting the UUID tunnel required massive 168-character tokens unreachable by frontend UIs. Acquired the respective JWT by tapping `api.cloudflare.com/client/v4/accounts/{id}/cfd_tunnel/{id}/token`.
