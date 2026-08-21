@@ -1,109 +1,75 @@
-# ️ Production Deployment Guide (Oracle Linux + Cloudflare)
+# Production Deployment Guide (Oracle Linux + Cloudflare)
 
-This document contains the exact, copy-pasteable commands customized for your active Oracle Cloud VM (**IP: 140.245.237.213**).
+This document contains the exact, copy-pasteable commands customized for your active Oracle Cloud VM (IP: 68.233.111.2).
 
-## Phase 1: Push Files to the Oracle Server
+## Phase 1: Oracle Environment Bootstrapping
 
-Run these commands in your **local computer's terminal** (not the VM). Note: Replace `*08-20*.key` with the exact filename if it is slightly different.
+Oracle Free Tier instances require specific GCC toolchains to compile bundled `rusqlite`.
 
-1. **Protect your SSH key** (SSH will refuse to connect if the key permissions are too open):
 ```bash
-chmod 400 ~/Downloads/*08-20*.key
+# Log into the Oracle Virtual Machine
+ssh -i ~/Downloads/ssh-key-2026-08-20.key opc@68.233.111.2
+
+# Install Required C Toolchains for Bindgen
+sudo dnf install -y gcc clang llvm-devel glibc-devel
+
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
 ```
 
-2. **Upload the Server and Database** (This will take a minute or two since the DB is ~13MB):
-```bash
-cd ~/Project/amrita_downloader/amrita-dl
+## Phase 2: Compilation and Systemd Migration
 
-# We use 'opc' because you provisioned Oracle Linux 9
-scp -i ~/Downloads/*08-20*.key \
-  target/release/server \
-  /run/media/anuruprkris/DATA/amrita-exam-papers-indexed/index.db \
-  opc@140.245.237.213:/home/opc/
+Due to kernel panic restraints on 1GB RAM instances, compilation runs in a background thread utilizing constrained limits (`codegen-units=16`, `-j 1`).
+
+```bash
+tar xzf source.tar.gz
+# Compile silently in background
+nohup cargo build --release --bin server -j 1 > ~/build.log 2>&1 &
 ```
 
----
+Once `target/release/server` executes successfully, SELinux prevents executing binaries directly inside `/home/opc/` for background daemons.
 
-## Phase 2: Start the Server inside the VM
-
-Now, log directly into the Oracle Virtual Machine:
-
-1. **Connect via SSH:**
 ```bash
-ssh -i ~/Downloads/*08-20*.key opc@140.245.237.213
+# Escalate binary to system execution paths
+sudo cp ~/target/release/server /usr/local/bin/amrita-server
+sudo chmod 755 /usr/local/bin/amrita-server
+
+# Escalate systemd configuration
+sudo cp scripts/amrita-server.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable amrita-server
+sudo systemctl start amrita-server
 ```
 
-2. **Make the API run forever (Systemd):**
-Copy and paste this entire block into your VM terminal and press Enter. It creates a robust background daemon:
+## Phase 3: Cloudflare Tunnel Persistence
+
+To bypass aggressive OCI Firewalls and Cloudflare origin TLS requirements, local port 80 is bridged directly via a named encrypted tunnel.
+
 ```bash
-sudo tee /etc/systemd/system/amrita-server.service << 'EOF'
+# Download native Cloudflared daemon
+curl -fsSL 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64' -o /tmp/cloudflared
+sudo mv /tmp/cloudflared /usr/local/bin/cloudflared
+sudo chmod +x /usr/local/bin/cloudflared
+
+# Establish daemon persistence
+sudo tee /etc/systemd/system/cloudflared-tunnel.service > /dev/null << 'EOF'
 [Unit]
-Description=Amrita API Server
-After=network.target
+Description=Cloudflare Quick Tunnel to amrita-server
+After=network.target amrita-server.service
 
 [Service]
 Type=simple
 User=opc
-WorkingDirectory=/home/opc
-ExecStart=/home/opc/server
-Environment="PORT=80"
-Environment="INDEX_DB=/home/opc/index.db"
-Environment="STORAGE_PUBLIC_URL=https://objectstorage.ap-hyderabad-1.oraclecloud.com/n/axrtbfdmqkku/b/oracle-amrita-bucket/o"
-Environment="CORS_ALLOWED_ORIGINS=https://exampapersamrita.pages.dev"
+ExecStart=/usr/local/bin/cloudflared tunnel --url http://localhost:80 --logfile /home/opc/tunnel.log
 Restart=always
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 EOF
-```
 
-3. **Start the API:**
-```bash
-sudo chmod +x /home/opc/server
 sudo systemctl daemon-reload
-sudo systemctl enable --now amrita-server
+sudo systemctl enable cloudflared-tunnel
+sudo systemctl start cloudflared-tunnel
 ```
-
-4. **Open the Oracle Linux OS Firewall:**
-Oracle Linux firmly blocks external traffic out of the box. Run this to open port 80:
-```bash
-sudo firewall-cmd --zone=public --add-port=80/tcp --permanent
-sudo firewall-cmd --reload
-```
-
----
-
-## Phase 3: Open the OCI Cloud Firewall
-
-Now that your OS is accepting traffic, you must tell the Oracle Cloud Dashboard to let internet traffic reach the VM.
-
-1. In the **Oracle Cloud Console**, go to your VM's details page.
-2. Under "Primary VNIC", click on your Subnet string text (e.g., `Subnet-amrita-paper`).
-3. Click on the **Security List** (e.g., `Default Security List for Vcn-amrita-paper`).
-4. Click **Add Ingress Rules**.
-   - **Source CIDR:** Type `0.0.0.0/0`
-   - **Destination Port Range:** Type `80`
-   - Click the **Add Ingress Rules** button.
-
----
-
-## Phase 4: Route the Frontend to your IP
-
-Since we aren't using a custom root domain right now, we will simply point the Cloudflare Pages reverse proxy directly to your Oracle VM's public IP address.
-
-1. **Open a new local terminal (Disconnect from the VM).**
-2. Point your API redirect proxy straight to the Oracle IP:
-```bash
-cd ~/Project/amrita_downloader/amrita-dl
-echo "/api/* http://140.245.237.213/api/:splat 200" > web/_redirects
-```
-3. Deploy the UI to the Cloudflare network:
-```bash
-CLOUDFLARE_API_TOKEN="" npx wrangler pages deploy web --project-name exampapersamrita --commit-dirty=true
-```
-
-## Validation
-Once completed, simply open your browser and visit:
-**[https://exampapersamrita.pages.dev](https://exampapersamrita.pages.dev)**
-
-The API is now natively hooked up!

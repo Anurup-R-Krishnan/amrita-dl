@@ -1,30 +1,22 @@
-# ️ Operations & Maintenance Guide
+# Operations & Maintenance Guide
 
-## 1. Local Development (`run_local.sh`)
+## 1. Local Development (`run_local.sh` deprecated)
 
-When working locally, you cannot serve the 9.2GB folder from your machine natively if the drive is unplugged. The `scripts/run_local.sh` file mounts a hybrid environment:
-- The actual server runs on `localhost:3000`.
-- The database points to your local `index.db` copy.
-- But `STORAGE_PUBLIC_URL` is hardcoded to Oracle Cloud!
+The legacy hybrid Bash approach is fully replaced securely. Development now integrates natively:
+- The actual server parses natively responding on port `80` (or configured override).
+- The database directly targets the single source of truth SQLite file localized in your workspace.
+- The Object Storage sync workflows bypass localized Bash wrappers entirely.
 
-**What this means:** You can develop the UI locally against `http://localhost:3000`. Searching queries your local `index.db`, but clicking "Download PDF" redirectly fetches the PDF from the live cloud bucket, meaning you don't need the 9.2GB hard drive plugged in just to write CSS!
+## 2. Syncing the Database and Buckets natively in Rust.
 
-## 2. Pushing Data Updates to Oracle Cloud
-
-If Amrita releases new exams in the future, you will run `amrita-index` to process the PDFs.
-Once the `amrita-exam-papers-indexed` folder on your external drive has new files, you sync it to Oracle Cloud natively using the provided shell script.
+Legacy `perfect_sync.py` and `upload_pdfs.py` routines generated database corruption deadlocks and Rclone string splitting failures. The workflow has been definitively rewritten securely:
 
 ```bash
-# Preview what would be uploaded (Dry Run)
-./scripts/sync_to_oracle.sh --dry-run
+# Push schema realignments avoiding thread locking delays
+cargo run --release --bin db_sync
+
+# Execute Object Storage sync avoiding Space/Ampersand parsing faults
+cargo run --release --bin upload
 ```
 
-**Under the Hood (`rclone`)**:
-- Uses 16 parallel transfers and 32 parallel checkers to maximize bandwidth.
-- Strictly ignores `.meta` files using the `--exclude "*.meta"` flag (saving useless thousands of JSON objects from rotting in your bucket).
-- Uses `--fast-list` to avoid fetching OCI directories one-by-one, cutting sync time dramatically on the 29,678 objects.
-
-## 3. Database Schema Re-Alignment
-
-If the Rust binary `amrita-index` is modified in the future to change how strings are formatted (slugification), the OCI paths will break. 
-You must run the Python alignment script located at `scripts/rebuild_db_paths.py`. It perfectly mirrors the Rust string mutation rules into `index.db`'s `relative_path` column directly in-place without triggering massive data migrations.
+These executables compile against standard target architecture guaranteeing zero reliance on local interpreter parity anomalies.

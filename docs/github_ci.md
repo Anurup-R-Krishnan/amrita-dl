@@ -1,28 +1,27 @@
-#  Automated CI/CD (GitHub Actions)
+# Automated CI/CD (GitHub Actions)
 
-We have configured a fully automated pipeline using **GitHub Actions**. Whenever you push code to the `main` branch, it will automatically deploy your latest `web/` folder to Cloudflare Pages.
+We have configured a fully automated pipelines using GitHub Actions located within `.github/workflows/`. Whenever code is pushed to the `main` branch, it automatically validates the Rust backends and leverages direct JWT injection to deploy static elements to Cloudflare Pages.
 
-## How to activate this:
+## Architecture
 
-### 1. Push your code to GitHub
-If you haven't already:
-```bash
-git add .
-git commit -m "feat: setup github actions CI/CD"
-git branch -M main
-git remote add origin https://github.com/<YOUR_USERNAME>/<YOUR_REPO_NAME>.git
-git push -u origin main
-```
+1. **`ci-cd.yml`**:
+   - Compiles Rust `amrita-server` across all target matrices natively.
+   - Executes `cargo clippy --bin server -D warnings`.
+   - Executes `cargo test`.
+   - (Deprecated: Local bash execution validations like `check_frontend.sh` were stripped).
 
-### 2. Add Secrets to GitHub
-The GitHub action we just created (`.github/workflows/deploy.yml`) needs authorization to deploy to your Cloudflare account. 
+2. **`deploy.yml`**:
+   - Automatically scopes the `web/` active layout.
+   - Pushes static distributions to the `exampapersamrita` Pages routing.
 
-Go to your GitHub Repository -> **Settings** -> **Secrets and variables** -> **Actions**. Add these two "New repository secrets":
+## Deployment Triggering Limitations
 
-1. **`CLOUDFLARE_ACCOUNT_ID`**
-   - *How to get it:* Open your Cloudflare Dashboard, look at the URL `dash.cloudflare.com/{THIS_LONG_STRING}/pages`. Copy that exact string.
-2. **`CLOUDFLARE_API_TOKEN`**
-   - *How to get it:* In Cloudflare Dashboard, go to **My Profile** -> **API Tokens** -> **Create Token** -> Use the **Edit Cloudflare Workers** template -> Click **Continue to summary** and **Create Token**. Copy the secret.
+During deployment debugging, Wrangler occasionally triggers `Code 10000 Authentication Error` despite valid OAuth routines. When this fails:
+1. OAuth scopes tied to `wrangler pages deploy` may become stale.
+2. The pipeline execution circumvents this securely by explicitly assigning JWT via environment pipelines: `CLOUDFLARE_API_TOKEN=$CF_TOKEN wrangler deploy`.
+3. To bypass dirty-git locks halting deployments mid-air, the action invokes `--commit-dirty=true` ensuring synchronous repository representations.
 
-### 3. Test the deployment
-Once the secrets are pasted into GitHub, simply make a tiny edit to your HTML file locally, run `git add . && git commit -m "test deployment" && git push`, and watch the **Actions** tab on your GitHub repository automatically deploy it in less than 5 seconds!
+### Managing Secrets
+Operations demand exact matching of tokens inside the GitHub repository Settings:
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
