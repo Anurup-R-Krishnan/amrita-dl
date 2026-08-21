@@ -1,51 +1,51 @@
 # Network Origin Validation & Tunneling Configuration
 
 **19. Firewalld IP Drops**
-- *Roadblock:* Internal `curl` requests verified successful executions, but accessing the public IP address hung indefinitely blocking end-users.
-- *Fix:* Executed `sudo firewall-cmd --list-ports` analyzing dropping logs and bypassed public ingress configuring Cloudflare secure bridging tunnels exclusively.
+*The Pitfall:* The Axum backend was running perfectly locally. Internal `curl` on the VM resolved 200 OK. But the public IP address just hung indefinitely over standard Port 80. Oracle's default networking doesn't just block traffic at their cloud level—the VM itself runs `firewalld`, silently dropping every single public ingress mapping maliciously.
+*How we faced it:* Instead of painstakingly opening Oracle subnets and manually debugging `firewall-cmd --list-ports`, we dropped standard ingress routing entirely. We isolated the native routing exclusively through Cloudflare bridging tunnels natively skipping public access totally.
 -> *Verify: Oracle Subnets retain maximum isolation ignoring raw traffic while the application routes effectively isolated.*
 
 **20. Restricted Edge Origin Rules**
-- *Roadblock:* Initial `_redirects` proxy configurations aimed explicitly against `http://` failing silently against `Pages` 200 responses requiring HTTPS valid endpoints natively.
-- *Fix:* Discovered Cloudflare infrastructure drops proxying against unencrypted nodes forcing deployment of standard Cloudflare Tunnels mapping SSL securely.
+*The Pitfall:* Our initial setup was elegant: use Cloudflare Pages `_redirects` to proxy `/api/*` requests to the Oracle backend's raw IP `http://68.233.111.2`. It failed silently. Cloudflare Pages aggressively dropped proxying structures attempting to bridge onto unencrypted nodes natively demanding SSL endpoints implicitly.
+*How we faced it:* Since we couldn't slap an SSL cert onto a raw IP without complex Certbot routing, we pivoted abruptly deploying native Cloudflare Tunnels mapping SSL securely avoiding explicit proxies comprehensively.
 -> *Verify: HTTPS proxies dynamically resolve targeting the newly defined encrypted node structure mapping correctly.*
 
 **21. Cloudflare RPM Distribution 404s**
-- *Roadblock:* Internal OS `dnf install cloudflared` returned native 404 errors tracking legacy unmaintained endpoint definitions.
-- *Fix:* Bypassed package distributions securely injecting AMD64 Linux binaries natively capturing `wget` endpoint outputs natively to local executions.
+*The Pitfall:* To run the Tunnel, we tried installing `cloudflared` using standard `dnf` procedures. The package manager violently returned 404 mapping exceptions. The legacy tutorial repositories tracking Cloudflare explicitly abandoned RedHat tracking definitions completely stalling our setup.
+*How we faced it:* We abandoned package distributors totally operating strict binary curl definitions directly pulling AMD64 executable formats over Wget injecting safely natively bypassing Linux RPM dependencies safely.
 -> *Verify: `cloudflared --version` executes locally responding strictly over valid current patch definitions tracking releases accurately.*
 
 **22. Privileged Escalation of Daemons**
-- *Roadblock:* `cloudflared` explicitly halted opening listening loops citing permission execution blockades against user configurations.
-- *Fix:* Pushed binary rigidly into `/usr/local/bin` enforcing `chmod +x` root-level bindings enabling secure subsystem connections.
+*The Pitfall:* Cloudflared attempted establishing listening hooks but completely crashed citing extreme OS protection blockades. The user accounts were barred from engaging subsystem connections.
+*How we faced it:* We violently escalated permission structures directly pushing code bindings onto `/usr/local/bin` mapping explicit `chmod +x` root-level structures safely launching endpoints precisely.
 -> *Verify: `cloudflared tunnel run` resolves without halting explicitly executing subsystem network bindings properly.*
 
 **23. Temporary Tunnel Output Parsing**
-- *Roadblock:* Quick tunnel environments push generated URLs deep against log execution boundaries asynchronously dropping identification structures inherently.
-- *Fix:* Constructed exact `grep -o 'https://[a-z0-9-]*\.trycloudflare\.com'` parsing mechanics filtering dynamic identifiers accurately over automated scripts.
+*The Pitfall:* The quick tunnel generated chaotic `.trycloudflare.com` URLs asynchronously inside logs making scripting deployments impossible because the host changed eternally.
+*How we faced it:* We generated extreme tracking parameters using `grep -o 'https://[a-z0-9-]*\.trycloudflare\.com'` parsing the ephemeral architectures autonomously filtering outputs accurately over automation loops tightly.
 -> *Verify: String returns exactly the UUID format masking output structures accurately bridging external execution commands uniformly.*
 
 **24. Cloudflare Worker 1003 Banning**
-- *Roadblock:* Temporary edge scripts utilized `fetch()` targeting the unencrypted origin `68.233.111.2:80` generating rigid unhandled HTTP exception errors tracking explicitly Code 1003.
-- *Fix:* Migrated origin calls bridging Cloudflare named tunnels utilizing persistent encrypted HTTPS routes forcing protocol compliance.
+*The Pitfall:* A desperate attempt at writing a custom Cloudflare Worker to `fetch()` the unencrypted IP node explicitly triggered Error 1003. Cloudflare heavily restricts workers from bridging non-TLS custom architectures dynamically.
+*How we faced it:* We natively enforced TLS mapping binding explicitly over persistent HTTPS routes forcing active Cloudflare named tunnels completely terminating Error 1003 cleanly.
 -> *Verify: Edge payloads process 200 HTTP calls targeting `*.cfargotunnel.com` domains accurately escaping Edge drops efficiently.*
 
 **25. Named Tunnel Creation Collisions**
-- *Roadblock:* Creating fixed tunnels flagged "already exists" halting the `amrita-api` definition strictly over automated API boundaries.
-- *Fix:* Re-evaluated existing definitions requesting current mappings resolving exact UUID states explicitly retaining execution tracking gracefully.
+*The Pitfall:* We tried to standardize the TryCloudflare ephemerality by creating a fixed tunnel named `amrita-api`. The CLI halted stating "already exists". We had historically abandoned a tunnel in the UI.
+*How we faced it:* We bypassed arbitrary naming mechanisms actively polling REST targets forcing current UUID extractions exactly locking onto valid historical entities explicitly gracefully.
 -> *Verify: JSON parameter returns precise `a0a5a18a-fc04...` bypassing naming duplications accurately locking origin architectures safely.*
 
 **26. Named Tunnel Unauthenticated Ingress**
-- *Roadblock:* Launching the fixed UUID tunnel generated unauthenticated tracking errors demanding internal credential files structurally missing organically.
-- *Fix:* Siphoned dynamic explicit 168-character tokens extracting natively over the Cloudflared REST API capturing explicit access.
--> *Verify: `cloudflared tunnel run --token` bootstraps successfully parsing credentials directly avoiding JSON file configuration requirements explicitly.*
+*The Pitfall:* Running a named tunnel demanded a missing `credentials.json` file. We couldn't fetch it headless, halting ingress capabilities immediately.
+*How we faced it:* We bypassed physical credential tracking directly siphoning a massive 168-character token out of the Cloudflare UI passing it aggressively natively to the `--token` boot argument tightly overriding file systems totally.
+-> *Verify: `cloudflared tunnel run --token` bootstraps successfully parsing credentials directly avoiding JSON files.*
 
 **27. IPv6 Disallowed Routing Errors**
-- *Roadblock:* Connected infrastructure reported HTML DNS outputs flagging internal loop failures mapping origin paths natively restricting ingress tracking gracefully.
-- *Fix:* Mapped structural REST config configurations asserting `ingress` routing rules injecting exact destination proxies targeting `http://localhost:80`.
+*The Pitfall:* Despite everything connecting, the frontend pulled broken HTML proxy pages explicitly citing internal IPv6 mapping definitions blocking Cloudflared local resolution dynamically.
+*How we faced it:* We modified the daemon `ingress` routing rules commanding proxies into explicitly named `http://localhost:80` avoiding localhost loopback array drops strictly correctly.
 -> *Verify: Proxied endpoints resolve raw JSON directly bypassing DNS loop errors correctly targeting active Daemon mapping systems uniformly.*
 
 **28. Systemd Cloudflared Persistence**
-- *Roadblock:* Edge domains utilizing Quick Tunnels dynamically shift UUID boundaries upon SSH breaks forcing deployment failure maps natively crashing proxy scripts organically.
-- *Fix:* Bootstrapped isolated `cloudflared-tunnel.service` maintaining constant Daemon monitoring dynamically restarting proxy variables uniformly ensuring stability organically.
+*The Pitfall:* The proxy functioned beautifully until we restarted the VM. Cloudflared scripts died asynchronously crashing the site immediately exactly when server maintenance operated organically.
+*How we faced it:* We architected a brutalist `cloudflared-tunnel.service` configuration ensuring structural monitoring loops tracked execution environments constantly keeping node networks resiliently attached dynamically.
 -> *Verify: `systemctl status cloudflared-tunnel` enforces Active(Running) reporting mapping eternal origin integrations precisely avoiding node crash mapping drops natively.*
