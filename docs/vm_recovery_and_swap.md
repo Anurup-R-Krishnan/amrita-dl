@@ -1,4 +1,4 @@
-#  VM Kernel Recovery & Custom Swap Setup
+# VM Kernel Recovery & Custom Swap Setup
 
 Because we were unable to secure an Ampere A1 (24GB RAM) shape due to extreme capacity limits in `ap-hyderabad`, we fell back to the 1GB RAM `Micro` tier. Because Linux completely freezes when compiling code with limited RAM, we implemented an artificial high-speed buffer directly on the SSD block volume.
 

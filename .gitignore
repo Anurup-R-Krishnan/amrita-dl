@@ -1,1 +1,27 @@
-/target
+/target/
+**/target/
+.cargo/
+.wrangler/
+dist/
+node_modules/
+
+# IDEs
+.idea/
+.vscode/
+
+# Environment and Secrets
+.env
+*.pem
+*.key
+*.pub
+ssh-key-*
+
+# Build archives
+*.tar.gz
+*.zip
+
+# Database runtime files
+*.db-shm
+*.db-wal
+server.log
+tunnel.log

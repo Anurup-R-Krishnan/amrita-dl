@@ -1,4 +1,4 @@
-#  Throttling Rust Compilation for Micro VMs (1GB RAM)
+# Throttling Rust Compilation for Micro VMs (1GB RAM)
 
 Attempting to run `cargo build --release` on a highly optimized, asynchronous web server requires compiling nearly 150+ interdependent crates. On an Oracle `VM.Standard.E2.1.Micro` instance equipped with only 1 Core and 1 GB of RAM, the default Rust compilation settings will immediately trigger an Out-of-Memory (OOM) kernel panic, effectively killing/crashing the virtual machine.
 
