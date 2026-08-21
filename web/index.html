@@ -311,7 +311,7 @@
         <!-- Result Overview Stats Header with Sort, Per-Page, View Toggle Controls -->
         <div id="archive" class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4">
             <span class="font-semibold text-xs text-gray-600">Showing <strong x-text="searchHits.length" class="text-amrita-maroon font-extrabold tabular-nums">0</strong> of <strong x-text="totalResults" class="text-amrita-maroon font-extrabold tabular-nums">0</strong> matching exam papers</span>
-            <div class="flex items-center gap-3 flex-wrap">
+            <div class="flex items-center gap-2 flex-wrap">
                 <!-- Select All Page Button -->
                 <button @click="toggleSelectAllPage()" 
                         :class="isPageAllSelected() ? 'bg-amrita-maroon text-white border-amrita-maroon' : 'bg-white text-gray-700 border-gray-200 hover:border-amrita-maroon hover:bg-amrita-light'" 
@@ -330,60 +330,60 @@
                     </button>
                 </div>
                 <!-- Sort By Dropdown -->
-                <div class="relative w-full sm:w-44" x-data="{ open: false }">
-                    <label class="block text-xs font-extrabold uppercase text-gray-500 mb-1.5">Sort</label>
+                <div class="relative" x-data="{ open: false }">
                     <button @click="open = !open"
                             aria-label="Sort results by"
-                            class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors">
-                        <span class="truncate" x-text="sort ? (sort === 'newest' ? 'Newest First' : sort === 'year_asc' ? 'Oldest First' : sort === 'code_asc' ? 'Code A-Z' : 'Title A-Z') : 'Sort By'"></span>
+                            class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-left font-bold text-xs text-gray-800 flex items-center gap-2 shadow-sm transition-colors">
+                        <span class="text-gray-400 font-semibold">Sort:</span>
+                        <span x-text="sort === 'newest' ? 'Newest' : sort === 'year_asc' ? 'Oldest' : sort === 'code_asc' ? 'Code A-Z' : sort === 'title_asc' ? 'Title A-Z' : 'Any'"></span>
                         <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform" :class="{ 'rotate-180': open }"></i>
                     </button>
 
-                    <div x-show="open" @click.away="open = false" x-transition.opacity class="absolute left-0 right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-1" style="display: none;">
+                    <div x-show="open" @click.away="open = false" x-transition.opacity class="absolute right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-1 min-w-[140px]" style="display: none;">
                         <div @click="changeSort('newest'); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': sort === 'newest' }">
                             <span>Newest First</span>
-                            <i x-show="sort === 'newest'" class="fa-solid fa-check text-amrita-maroon"></i>
+                            <i x-show="sort === 'newest'" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
                         <div @click="changeSort('year_asc'); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': sort === 'year_asc' }">
                             <span>Oldest First</span>
-                            <i x-show="sort === 'year_asc'" class="fa-solid fa-check text-amrita-maroon"></i>
+                            <i x-show="sort === 'year_asc'" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
                         <div @click="changeSort('code_asc'); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': sort === 'code_asc' }">
                             <span>Code A-Z</span>
-                            <i x-show="sort === 'code_asc'" class="fa-solid fa-check text-amrita-maroon"></i>
+                            <i x-show="sort === 'code_asc'" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
                         <div @click="changeSort('title_asc'); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': sort === 'title_asc' }">
                             <span>Title A-Z</span>
-                            <i x-show="sort === 'title_asc'" class="fa-solid fa-check text-amrita-maroon"></i>
+                            <i x-show="sort === 'title_asc'" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
                     </div>
                 </div>
                 <!-- Items Per Page Selector -->
-                <div class="relative w-full sm:w-36" x-data="{ open: false }">
-                    <label class="block text-xs font-extrabold uppercase text-gray-500 mb-1.5">Per Page</label>
+                <div class="relative" x-data="{ open: false }">
                     <button @click="open = !open"
                             aria-label="Items per page"
-                            class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors tabular-nums">
-                        <span class="truncate" x-text="pageSize ? `${pageSize} Items` : 'Items'"></span>
+                            class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-left font-bold text-xs text-gray-800 flex items-center gap-2 shadow-sm transition-colors tabular-nums">
+                        <span class="text-gray-400 font-semibold">Per page:</span>
+                        <span x-text="pageSize ? `${pageSize}` : '24'"></span>
                         <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform" :class="{ 'rotate-180': open }"></i>
                     </button>
 
-                    <div x-show="open" @click.away="open = false" x-transition.opacity class="absolute left-0 right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-1" style="display: none;">
+                    <div x-show="open" @click.away="open = false" x-transition.opacity class="absolute right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-1 min-w-[100px]" style="display: none;">
                         <div @click="changePageSize(12); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': pageSize === 12 }">
-                            <span>12 Items</span>
-                            <i x-show="pageSize === 12" class="fa-solid fa-check text-amrita-maroon"></i>
+                            <span>12</span>
+                            <i x-show="pageSize === 12" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
                         <div @click="changePageSize(24); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': pageSize === 24 }">
-                            <span>24 Items</span>
-                            <i x-show="pageSize === 24" class="fa-solid fa-check text-amrita-maroon"></i>
+                            <span>24</span>
+                            <i x-show="pageSize === 24" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
                         <div @click="changePageSize(48); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': pageSize === 48 }">
-                            <span>48 Items</span>
-                            <i x-show="pageSize === 48" class="fa-solid fa-check text-amrita-maroon"></i>
+                            <span>48</span>
+                            <i x-show="pageSize === 48" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
                         <div @click="changePageSize(96); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': pageSize === 96 }">
-                            <span>96 Items</span>
-                            <i x-show="pageSize === 96" class="fa-solid fa-check text-amrita-maroon"></i>
+                            <span>96</span>
+                            <i x-show="pageSize === 96" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
                     </div>
                 </div>
