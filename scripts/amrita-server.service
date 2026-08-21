@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=opc
 WorkingDirectory=/home/opc
-ExecStart=/home/opc/target/release/server
+ExecStart=/usr/local/bin/amrita-server
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 Environment="PORT=80"
 Environment="INDEX_DB=/home/opc/index.db"
