@@ -1,22 +1,27 @@
 # Operations & Maintenance Guide
 
-## 1. Local Development (`run_local.sh` deprecated)
+## 1. Local Development
 
-The legacy hybrid Bash approach is fully replaced securely. Development now integrates natively:
-- The actual server parses natively responding on port `80` (or configured override).
-- The database directly targets the single source of truth SQLite file localized in your workspace.
-- The Object Storage sync workflows bypass localized Bash wrappers entirely.
+Legacy bash hooks (`run_local.sh`) are entirely deprecated.
 
-## 2. Syncing the Database and Buckets natively in Rust.
-
-Legacy `perfect_sync.py` and `upload_pdfs.py` routines generated database corruption deadlocks and Rclone string splitting failures. The workflow has been definitively rewritten securely:
-
+**Run server natively**
 ```bash
-# Push schema realignments avoiding thread locking delays
-cargo run --release --bin db_sync
+cargo run --release --bin server
+```
+*Verify: `curl -I http://localhost:3000/api/search?q=test` returns HTTP 200.*
 
-# Execute Object Storage sync avoiding Space/Ampersand parsing faults
+## 2. Syncing Data and Blobs
+
+Previous Python scripts (`perfect_sync.py`, `upload_pdfs.py`) produced database deadlock exceptions and unescaped shell paths. Use the rewritten native Rust binaries matching local environments securely.
+
+**Align Database Index**
+```bash
+cargo run --release --bin db_sync
+```
+*Verify: `sqlite3 index.db "SELECT count(*) FROM papers;"` yields 19,600+ validation count.*
+
+**Object Storage Push**
+```bash
 cargo run --release --bin upload
 ```
-
-These executables compile against standard target architecture guaranteeing zero reliance on local interpreter parity anomalies.
+*Verify: Rclone payload output matches DB index parity with zero error warnings.*

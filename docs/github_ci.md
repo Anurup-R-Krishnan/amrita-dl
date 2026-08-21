@@ -1,27 +1,23 @@
 # Automated CI/CD (GitHub Actions)
 
-We have configured a fully automated pipelines using GitHub Actions located within `.github/workflows/`. Whenever code is pushed to the `main` branch, it automatically validates the Rust backends and leverages direct JWT injection to deploy static elements to Cloudflare Pages.
+Continuous Deployment is managed by workflows inside `.github/workflows/`.
 
-## Architecture
+## Pipelines
 
-1. **`ci-cd.yml`**:
-   - Compiles Rust `amrita-server` across all target matrices natively.
-   - Executes `cargo clippy --bin server -D warnings`.
-   - Executes `cargo test`.
-   - (Deprecated: Local bash execution validations like `check_frontend.sh` were stripped).
+**1. Rust Test Matrix (`ci-cd.yml`)**
+Action: Compiles models, enforces `cargo clippy -D warnings`, runs `cargo test`.
+*Verify: GitHub Actions UI registers a green checkmark against the active push.*
 
-2. **`deploy.yml`**:
-   - Automatically scopes the `web/` active layout.
-   - Pushes static distributions to the `exampapersamrita` Pages routing.
+**2. Cloudflare Pages Deploy (`deploy.yml`)**
+Action: Triggers JWT-driven deployment of static assets (`web/`) mapping cross-origin policies.
+*Verify: `exampapersamrita.pages.dev` actively reflects DOM changes post-merge.*
 
-## Deployment Triggering Limitations
+## Troubleshooting Auth Errors
 
-During deployment debugging, Wrangler occasionally triggers `Code 10000 Authentication Error` despite valid OAuth routines. When this fails:
-1. OAuth scopes tied to `wrangler pages deploy` may become stale.
-2. The pipeline execution circumvents this securely by explicitly assigning JWT via environment pipelines: `CLOUDFLARE_API_TOKEN=$CF_TOKEN wrangler deploy`.
-3. To bypass dirty-git locks halting deployments mid-air, the action invokes `--commit-dirty=true` ensuring synchronous repository representations.
+Wrangler `Code 10000 Authentication Error` implies expired OAuth caches.
+Fix: Rely on JWT direct injection mapped within actions.
 
-### Managing Secrets
-Operations demand exact matching of tokens inside the GitHub repository Settings:
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_API_TOKEN`
+**Action Secrets Mapped (`Settings > Secrets and variables > Actions`):**
+- `CLOUDFLARE_ACCOUNT_ID` -> Maps to absolute CF Dashboard UUID (`96f9c...`)
+- `CLOUDFLARE_API_TOKEN` -> Maps to explicit `Pages:Write` API key generated.
+*Verify: Deploys clear authorization checks successfully running `CLOUDFLARE_API_TOKEN=$CF_TOKEN wrangler deploy --commit-dirty=true`.*

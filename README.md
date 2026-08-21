@@ -1,48 +1,40 @@
 # Amrita Exam Papers Search Engine
 
-A high-performance, fully searchable archive of 19,600+ Amrita Vishwa Vidyapeetham examination question papers spanning B.Tech, M.Tech, MCA, M.Sc, and PhD programs.
+Searchable archive of 19,600+ Amrita Vishwa Vidyapeetham examination papers.
 
-## System Architecture
+## Architecture
 
-The search engine is built around a zero-cost, enterprise-grade cloud architecture:
+1. **Frontend:** Cloudflare Pages (`exampapersamrita.pages.dev`). Proxies `/api/*` to OCI via Pages Functions (`functions/api/[[path]].js`).
+2. **Backend:** Oracle Cloud Linux VM (Rust Axum + SQLite FTS5). Port 80 exposed exclusively via Cloudflare Tunnel (`cloudflared`).
+3. **Storage:** Oracle Object Storage (9+ GB PDFs). Accessed via relative CDN routing mappings; public bucket listing disabled.
 
-1. **Frontend (Cloudflare Pages)**
-   - Alpine.js structured SPA served globally from the Cloudflare Edge network.
-   - Domain: `exampapersamrita.pages.dev`
-   - Cross-Origin proxy handled internally via Cloudflare Pages Functions (`functions/api/[[path]].js`).
+## Development
 
-2. **Backend (Oracle Cloud Linux VM)**
-   - Custom asynchronous high-performance Rust web server traversing a local SQLite FTS5 database.
-   - The OS firewall restricts public inbound web traffic ensuring direct IP hiding.
-   - **Cloudflare Tunnel (`cloudflared`)** establishes an outbound TLS tunnel directly to the Cloudflare Edge masking the Oracle Cloud server IP securely.
+**1. Build backend**
+```bash
+cargo build --release --bin server
+```
+*Verify: `ls -lh target/release/server` confirms binary exists.*
 
-3. **Blob Storage (Oracle Object Storage)**
-   - Stores over 9 GB of raw PDF binary objects.
-   - The backend maps Search Index `relative_path` mappings dynamically to Cloudflare proxied CDN routes pointing safely back to securely configured Oracle buckets avoiding public S3 listing exposures.
+**2. Run backend**
+```bash
+cargo run --release --bin server
+```
+*Verify: `curl -s http://localhost:3000/api/facets` returns JSON payload.*
 
-## Development Pipeline
+**3. Sync schema/database**
+```bash
+cargo run --release --bin db_sync
+```
+*Verify: `sqlite3 index.db "PRAGMA integrity_check;"` returns `ok`.*
 
-1. **Building the Rust Backend Locally**
-   ```bash
-   # Compile natively
-   cargo build --release --bin server
+**4. Upload raw objects**
+```bash
+cargo run --release --bin upload
+```
+*Verify: `rclone size oracle-amrita-papers:oracle-amrita-bucket` count matches index row count.*
 
-   # Run locally (Listens on port 3000 by default)
-   cargo run --release --bin server
-   ```
+## Continuous Integration
 
-2. **Syncing New Exams & Data**
-   Instead of unreliable Python/Bash shell interpolations, dataset modifications happen natively in compiled robust environments:
-   ```bash
-   # Synchronize database constraints
-   cargo run --release --bin db_sync
-
-   # Upload PDFs via Rclone interfacing
-   cargo run --release --bin upload
-   ```
-
-## Production Automation
-
-The system employs continuous deployments through **GitHub Actions**. Pushing directly to the `main` branch immediately builds tests against the Rust repository utilizing `clippy`, and seamlessly forces JWT-secured direct static manifest distribution of the `web/` tree straight into the Cloudflare Pages edge deployments.
-
-For granular infrastructure logs mapping exactly how memory limits and port escalation issues were navigated on Oracle Free Tier instances, please reference `/docs/production_remediation_postmortem.md`.
+Pushes to `main` trigger `.github/workflows/ci-cd.yml` restricting failures upstream. 
+*Verify: GitHub Actions pipeline resolves without error; `exampapersamrita.pages.dev` reflects raw changes within ~10 seconds.*
