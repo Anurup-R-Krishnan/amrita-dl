@@ -1,4 +1,4 @@
-name: CI/CD Pipeline & Automated Deployment
+name: CI
 
 on:
   push:
@@ -8,10 +8,10 @@ on:
 
 jobs:
   test-backend:
-    name: Rust Backend CI (Check & Test)
+    name: Rust Backend CI
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Rust Toolchain
@@ -25,55 +25,8 @@ jobs:
       - name: Cargo Check
         run: cargo check --all-targets
 
-      - name: Run Server Unit Tests
+      - name: Run Tests
         run: cargo test --bin server -- --nocapture
 
-      - name: Cargo Clippy Linter
+      - name: Clippy
         run: cargo clippy --bin server -- -D warnings
-
-  check-frontend:
-    name: Frontend HTML & Alpine.js Validation
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Validate Frontend Index File
-        run: |
-          chmod +x ./scripts/check_frontend.sh
-          ./scripts/check_frontend.sh
-
-  deploy-frontend:
-    name: Deploy Static Frontend to Cloudflare Pages
-    needs: [test-backend, check-frontend]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.CLOUDFLARE_API_TOKEN != ''
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: amrita-papers-frontend
-          directory: web
-          gitBranch: main
-
-  deploy-backend:
-    name: Trigger Render Backend Deployment
-    needs: [test-backend, check-frontend]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger Render Deploy Hook
-        env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: |
-          if [ -n "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "Triggering Render deployment..."
-            curl -s -X POST "$RENDER_DEPLOY_HOOK_URL"
-          else
-            echo "RENDER_DEPLOY_HOOK_URL secret not set. Skipping automated Render webhook call."
-          fi
