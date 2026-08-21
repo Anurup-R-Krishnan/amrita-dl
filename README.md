@@ -38,3 +38,7 @@ cargo run --release --bin upload
 
 Pushes to `main` trigger `.github/workflows/ci-cd.yml` restricting failures upstream. 
 *Verify: GitHub Actions pipeline resolves without error; `exampapersamrita.pages.dev` reflects raw changes within ~10 seconds.*
+
+## Postmortem Architecture Documentation
+
+See **[50 Roadblocks: Postmortem & Resolution Index](docs/scenarios/README.md)** for a strict operational overview mapping the precise remediation pathways implemented across deployment failures.
