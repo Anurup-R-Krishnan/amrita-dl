@@ -1,100 +1,211 @@
-# Technical Interview Scenario: Resolving 50 Complex Production Roadblocks
+# Production Remediation Postmortem (2026-08-21)
 
-**Candidate Profile:** Systems Architect / DevOps Engineer
-**Project Context:** Migrating the Amrita Exam Papers search engine (Rust, SQLite, OCI Linux, Cloudflare Pages/Tunnels, CI/CD) from localized/Render architectures to absolute zero-cost native cloud primitives.
+## Executive Summary
+This document serves as an extremely detailed architectural and operational interview-style postmortem regarding the recovery, remediation, and final deployment of the Amrita DL search engine infrastructure.
 
-Below is the exact transcript mock-up detailing all 50 roadblocks encountered, articulated as an escalating technical interview.
+The system transitioned from a broken Render-backed API proxy to a stable, Cloudflare Tunnel-secured Oracle Cloud Infrastructure (OCI) backend proxy utilizing Cloudflare Pages Functions.
 
----
+## 50 Scenarios, Roadblocks, and Technical Resolutions
 
-## Part 1: Compute & Compilation Constraints
+1. **Scenario: Initial CI/CD Failure Analysis**
+   - *Roadblock:* Build failed completely pointing to duplicate configurations.
+   - *Fix:* Diagnosed duplicate `[profile.release]` blocks in `Cargo.toml`.
 
-**Interviewer: We provisioned an Oracle Free Tier VM (1GB RAM). How did you prevent Rust compilation from crashing the server?**
+2. **Scenario: Cloud Infrastructure Resource Constraints**
+   - *Roadblock:* OCI Free Tier VMs (1GB RAM) crash due to OOM kills during Rust parallel compilation.
+   - *Fix:* Added `codegen-units = 16`, `lto = false`, and forced `cargo build -j 1`.
 
-**Candidate:**
-1. **OOM Kernel Panics:** Default `cargo build --release` spawned too many threads, exhausting 1GB RAM instantly. I solved this by throttling concurrency strictly via `cargo build -j 1`.
-2. **Link Time Optimization Memory Spikes:** The `[profile.release]` contained `lto = true`, forcing the entire binary into RAM during linking. I disabled this (`lto = false`).
-3. **Compiler Code Generation Choking:** Cargo attempted massive monolithic compilation units. I partitioned the load by injecting `codegen-units = 16` into `Cargo.toml`.
-4. **Duplicate Cargo Profiles:** The build crashed explicitly complaining about conflicting `[profile.release]` blocks. I audited the configuration and merged the duplicate tables.
-5. **C Header Bindgen Failures:** `rusqlite` bundled compilation halted citing `stdarg.h not found`. I diagnosed missing C-toolchains on the minimal Oracle Linux image and installed `gcc clang llvm-devel glibc-devel`.
-6. **Zombie Process Ram Starvation:** When SSH dropped, orphaned Cargo processes consumed all memory blocking restarts. I injected strict `pkill -f 'cargo build'` hooks before any compilation retry.
+3. **Scenario: Legacy Python Script DB Locking**
+   - *Roadblock:* `perfect_sync.py` continually triggered "Database is locked" exceptions under concurrency.
+   - *Fix:* Rewrote sync logic as a native Rust binary (`db_sync.rs`) utilizing properly configured pragmas.
 
-## Part 2: Deployment Orchestration & Execution
+4. **Scenario: Upload Pipeline Path Parsing Failures**
+   - *Roadblock:* `upload_pdfs.py` failed due to spaces and ampersands in OCI Object Storage bucket paths.
+   - *Fix:* Discarded Python shell interpolation; rewrote as `upload.rs` leveraging exec array argument passing.
 
-**Interviewer: Once compiled, how did you handle migrating the raw code and keeping the application running without an orchestrator like Kubernetes?**
+5. **Scenario: Strict Documentation Standards Enforcement**
+   - *Roadblock:* Hard requirement for zero-emoji, ASCII-only documentation across the repository.
+   - *Fix:* Ran a mechanized RegEx pass deleting all Unicode markers across `docs/*.md` and `README.md`.
 
-**Candidate:**
-7. **SSH Protocol Warnings:** Connection streams printed "Connection not using post-quantum exchanges", disrupting bash payload piping. I aggregated all SSH logic and filtered errors using explicit grep inversions.
-8. **Git Directory Assumptions:** Legacy scripts assumed the repo was pulled to `~/amrita-dl/`, but the source tarball extracted flat into `~/`. I audited `ls -la ~` and re-mapped all paths relative to the user root.
-9. **Missing Tarball Assets:** The frontend `web/index.html` file dropped out of the initial transfer tarball, failing the Rust `include_str!` macro. I re-bundled `source.tar.gz` explicitly mapping the `web/` node.
-10. **Headless Execution Drops:** Running compilation commands manually dropped upon SSH disconnection. I implemented `nohup cargo build > build.log &` storing the PID dynamically to `build.pid`.
-11. **Asynchronous Service Startup:** We couldn't wait 45 minutes manually for compilation to finish to start the web server. I authored a detached background bash polling loop testing for `target/release/server` existence every 30 seconds to trigger `systemctl`.
-12. **Systemd Execution Restrictions (203/EXEC):** Systemd failed to start the raw binary left in `/home/opc/target/...` throwing `Permission Denied` due to SELinux user-space restrictions. I relocated the executable to `/usr/local/bin/amrita-server`.
-13. **Daemon Reload Caching:** Changing the `ExecStart` path in Systemd failed to register immediately. I diagnosed the cache gap and forced a `systemctl daemon-reload` before enabling.
+6. **Scenario: SSH Authentication Refusals**
+   - *Roadblock:* Default identities failed to connect to `68.233.111.2`. 
+   - *Fix:* Exhumed the correct legacy identity file `ssh-key-2026-08-20.key` from the local workspace.
 
-## Part 3: Overcoming Data Integrity and Shell Errors
+7. **Scenario: Missing Quantum Protocol in SSH**
+   - *Roadblock:* Warning emitted regarding non-quantum key exchanges disrupting script flows.
+   - *Fix:* Masked output by aggressively grep-piping standard streams.
 
-**Interviewer: How did you manage migrating legacy Python pipelines into pure Rust logic for index syncing?**
+8. **Scenario: Remote Home Directory Layout Assumptions**
+   - *Roadblock:* Initial models presumed the source resided in `~/amrita-dl/`, leading to `fn not found` errors.
+   - *Fix:* Audited remote file tree; discovered tarball unzipped flat directly into `/home/opc/`.
 
-**Candidate:**
-14. **Legacy Perfect Sync DB Locking:** `perfect_sync.py` failed during multi-threaded writes returning "database is locked". I rewrote the integration into `db_sync.rs` leveraging Rust's `rusqlite` serialization pragmas and exclusive transaction control.
-15. **Rclone Shell Injection Vulnerabilities:** `upload_pdfs.py` failed because file paths contained spaces and `&` symbols breaking Python `os.system`. I rewrote to `upload.rs` using `Command::arg()`, passing inputs natively via execution vectors without shell interpolation.
-16. **Verifying Massive Blob Storage Hash Deduplication:** The bucket already contained 64,600 files. Instead of trusting assumptions, I utilized `rclone size` across the Oracle target validating exact byte totals matching the database index parity.
-17. **SQLite Index Portability Risks:** Migrating a 13MB `index.db` via standard cloud volumes risked corruption. I enacted direct SCP transfers via the validated local machine bypass.
-18. **Residual Python Bloat:** Unused python/bash files cluttered the deployment logic making the CI confused. I invoked aggressive `git rm` scrubbing all non-Rust syncing solutions universally.
+9. **Scenario: Blocking Shell Execution States**
+   - *Roadblock:* Long-running cargo processes severed SSH links via timeouts.
+   - *Fix:* Detached the cargo compilation utilizing `nohup` piped to `build.log` running via background daemon tracking.
 
-## Part 4: Navigating Network & Origin Restrictions
+10. **Scenario: Asynchronous Daemon Auto-Initialization**
+    - *Roadblock:* Required the application to start immediately without manual SSH polling once compiling finished.
+    - *Fix:* Built a 30-second `while`-loop watcher bash daemon scanning for `target/release/server` presence.
 
-**Interviewer: The server is running natively, but port 80 requests timed out. Walk me through debugging the network bridging.**
+11. **Scenario: Index Authority Transfer Security**
+    - *Roadblock:* Transferring 19,600 row `index.db` without corruption to live VM.
+    - *Fix:* Synchronized index transfer via direct SCP bypassing intermediary volumes.
 
-**Candidate:**
-19. **Firewalld IP Drops:** Internal `curl` on the VM resolved JSON, but eternal IPs dropped. Checked `sudo firewall-cmd --list-ports` indicating Port 80 was sealed at the Oracle subnet layer.
-20. **Restricted Edge Origin Rules:** Standard Cloudflare Pages `_redirects` dropped proxy routing to `http://68.233.111.2`. I audited Cloudflare headers and discovered Pages 200 proxies require standard HTTPS compliant target endpoints.
-21. **Cloudflare RPM Distribution 404s:** Standard `dnf` and `rpm` package requests for `cloudflared` failed retrieving obsolete repository links. Pulled native AMD64 compiled binaries natively over `wget/curl`.
-22. **Privileged Escalation of Daemons:** The `cloudflared` executable was barred from opening port configurations internally. I pushed the binary to `/usr/local/bin` and invoked `chmod +x` enforcing root-level capability mappings.
-23. **Temporary Tunnel Output Parsing:** Ephemeral `.trycloudflare.com` URLs generated asynchronously in logs. I constructed an exact `grep -o 'https://[a-z0-9-]*\.trycloudflare\.com'` syntax fetching dynamic routing URLs blindly.
-24. **Cloudflare Worker 1003 Banning:** A testing Cloudflare worker failed explicitly with error 1003 restricting cross-zone unencrypted origins. This necessitated adopting the Cloudflare Tunnel bridge exclusively.
-25. **Named Tunnel Creation Collisions:** API requested the establishment of a static tunnel `amrita-api` which crashed citing duplicate naming entries. Retrospectively extracted the existing `a0a5a18a-fc04...` UUID instead.
-26. **Named Tunnel Unauthenticated Ingress:** Starting the UUID tunnel required massive 168-character tokens unreachable by frontend UIs. Acquired the respective JWT by tapping `api.cloudflare.com/client/v4/accounts/{id}/cfd_tunnel/{id}/token`.
-27. **IPv6 Disallowed Routing Errors:** The correctly connected named tunnel threw HTML error pages citing IPv6 mapping deficiencies. Solved by updating the explicit API `ingress` routing rules mapping traffic forcibly into local `http://localhost:80`.
-28. **Systemd Cloudflared Persistence:** Ephemeral TryCloudflare endpoints self-destruct post-reboot destroying proxy targets. Wrote `cloudflared-tunnel.service` guaranteeing eternal startup of the HTTPS network bridge.
+12. **Scenario: Systemd Environment Desync**
+    - *Roadblock:* Systemd file pointed to local workstation paths.
+    - *Fix:* Rewrote `/etc/systemd/system/amrita-server.service` absolute paths to root at `/home/opc/`.
 
-## Part 5: Resolving Frontend & CI/CD Cloudflare Integration
+13. **Scenario: Extraneous Tooling Deprecation**
+    - *Roadblock:* Repo polluted with out-of-date bash/python scripts confusing CI pipelines.
+    - *Fix:* Executed `git rm` deleting 4 legacy deployment files.
 
-**Interviewer: Explain resolving the Single Page Architecture (SPA) collision points against Cloudflare proxy systems.**
+14. **Scenario: Re-evaluating Bucket Integrity**
+    - *Roadblock:* Ambiguity evaluating if `upload.rs` actually needed to run.
+    - *Fix:* Checked local rclone configs, mapped the Oracle objective, and performed remote size count (64,601 files verified).
 
-**Candidate:**
-29. **API Parsing HTML Errors:** The frontend UI violently threw JSON parse errors. `curl`ing the origin endpoint exposed it returning `index.html` source codes instead of DB queries.
-30. **Pages Catch-All Override:** Cloudflare Pages treats active logic branches as SPA fallbacks natively superseding `_redirects`. Scrapped static redirectors substituting programmatic interceptors.
-31. **Developing Full Cloudflare Functions:** Bypassed `_redirects` by coding `[[path]].js` targeting the tunnel destination leveraging programmatic Cross-Origin resolution natively.
-32. **Functions Directory Obfuscation:** The `/functions/` node placed accidentally under `/web/functions/` was entirely ignored by the Wrangler builder matrix. Relocated to the parent `/functions/` root directory enabling edge integration.
-33. **Pre-flight CORS Restraints (OPTIONS):** The `fetch` calls intercepted by Functions threw invalid CORS requests missing Option mappings. Interrogated the Function code and securely returned HTTP 204 intercepts validating `Access-Control-Allow-Origin: *`.
-34. **Fallback API Parsing Toggles:** Frontend code utilized empty string fallbacks natively processing local routes via `getApiBase()`. Ensured zero-length URL injection appended flawlessly without duplicating forward slashes.
+15. **Scenario: Remote Build `stdarg.h` Header Failure**
+    - *Roadblock:* `rusqlite` bundled compilation halted at bindgen due to missing system C headers.
+    - *Fix:* Ran `sudo dnf install -y gcc clang llvm-devel glibc-devel` repairing the C toolchain.
 
-## Part 6: Overriding Obsolete Wrangler Configurations
+16. **Scenario: Source Parity Breakage**
+    - *Roadblock:* Compilation crashed again; `include_str!` could not find `web/index.html`.
+    - *Fix:* Discovered `web/` dir intentionally excluded in original tarball. Re-archived locally containing `web/`.
 
-**Interviewer: The GitHub Action pipeline crashed continuously. How did you restore automation deployments?**
+17. **Scenario: Process Zombie Interference**
+    - *Roadblock:* Restarting compilation without killing previous cargo build threads consumed all RAM.
+    - *Fix:* Passed SIGKILL aggressively to any matching running `cargo build` prior to restart.
 
-**Candidate:**
-35. **Obsolete Bash Invocation Hooks:** The GitHub Action attempted executing a locally deleted `check_frontend.sh` file halting the build pipeline. Audited `.github/workflows/ci-cd.yml` extracting ghost bash invocations ensuring pure Rust integration runs.
-36. **Render Platform Migration Ghosts:** Native workflows continually attempted Render remote deploy pushes via empty Secret Webhook URLs. Discarded the Render fallback topology totally relying on Pages Edge infrastructures.
-37. **Cloudflare Account ID Ambiguity:** Multiple Cloudflare pages domains existed (`amritapapers-1x5` vs `exampapersamrita`). Evaluated REST API endpoints parsing exact UUIDs aligning `exampapersamrita` across Wrangler definitions.
-38. **Wrangler Auth Cache Poisoning (Code 10000):** Wrangler generated fatal local Authentication failures on valid domains executing actions. Diagnosed token expiration matrices skipping manual local OAuth commands.
-39. **API Injection vs OAuth Refreshing:** Automated CI runners cannot authorize OAuth prompts. Engineered an explicitly masked bypass `CLOUDFLARE_API_TOKEN=$CF_TOKEN wrangler deploy`.
-40. **Dirty Staging Environment Blocking:** Untracked repository files (`.wrangler/` generated locally) aborted CI pushes automatically. Instructed execution overriding `--commit-dirty=true` natively inside actions deployments enforcing continuous merges.
-41. **Uploading Manifest Anomalies:** Attempting manual Pages pushing via raw Cloudflare API generated `{code: 8000096, message: manifest missing}`. Validated binary hashing mechanics were obsolete, preferring raw Wrangler configurations natively.
+18. **Scenario: Compound Bash Quoting Issues**
+    - *Roadblock:* Injecting complex Bash loops via SSH parameter strings failed to extract payloads.
+    - *Fix:* Decompiled multi-line scripts into segregated command blocks.
 
-## Part 7: Repository Hygiene & Automation Security
+19. **Scenario: Privilege Execution Barriers (203/EXEC)**
+    - *Roadblock:* Systemd failed starting `amrita-server` immediately post-build emitting `Permission denied`.
+    - *Fix:* Detected SELinux / systemd constraints preventing execution directly inside user home. Copied binary to `/usr/local/bin/amrita-server`.
 
-**Interviewer: The application works completely natively now under zero costs. But how did you repair the engineering environment hygiene itself?**
+20. **Scenario: Re-linking Systemd Paths**
+    - *Roadblock:* ExecStart path was permanently mapped in systemd cache to the erroneous path.
+    - *Fix:* Reconfigured `amrita-server.service` to pivot Execution Path, triggered `daemon-reload`.
 
-**Candidate:**
-42. **Massive Git Repository Leakages:** Evaluated `git status` extracting catastrophic security risks: Private RSA deployment keys (`ssh-key-2026-08-20.key`), massive Database Wal files, and backend server logs were entirely untracked and facing potential global commits.
-43. **Gitignore Rectification:** Built aggressive `.gitignore` constraints forcibly rejecting `*.key`, `*.pem`, `/target/`, `.db-shm/wal` protecting structural compliance tracking formats forever from injection failures.
-44. **Erasing Generative AI Slop Documentation:** The main `.README` files explicitly output "As an AI language model I noticed...". Enacted brutalist scrubs across configurations erasing hallucination artifacts directly formatting technical facts only.
-45. **Strict Unicode / ASCII Enforcement:** CI documentation contained emoji layouts (☁ / ️) restricting pure deployment parsifiers. Ran systemized regex extractions flattening architectures to exact ASCII structural standards.
-46. **Markdown Header Nullification Gaps:** Removing Emojis corrupted the markdown hierarchical boundaries resulting in double whitespacing (e.g. `#  Headers`). Restored precise regex sed substitutions recovering syntactically accurate files internally.
-47. **Multiple Outdated Documentation Vectors:** The core setup guide pointed to `run_local.sh` and 140.x remote IPs which crashed integrations persistently. Extensively rewrote `deployment_log.md`, `deploy_oci.md` synchronizing to exactly the present configuration state natively without bloat matrices.
-48. **Validating Endpoint Caching Failovers:** Real endpoints resolved flawlessly locally but browsers loaded cached HTML errors (Apollo JSON crashes). Enforced rigorous `curl -I` validation ensuring JSON `content-type` returns isolated browser caches definitively.
-49. **Enforcing Brutalist Operational Architectures:** Transitioned subjective deployment decisions applying Karpathy Operational Frameworks. Stripped away "flexibility and speculative wrappers" strictly verifying commands independently over guessing variables autonomously.
-50. **Securing Autonomous AI Failure Loops:** Rewrote the entire Agent Guidelines internal framework guaranteeing explicit closed-loop validations, demanding any modifications be restricted strictly to one-line diff formats restricting unmonitored architecture modifications structurally.
+21. **Scenario: Firewalld Traffic Suppression**
+    - *Roadblock:* API curl tests internally returned 200, but public IP hung indefinitely.
+    - *Fix:* Interrogated OCI `firewall-cmd`; diagnosed port 80 blocked at the Oracle VPS subnet layer.
+
+22. **Scenario: Frontend Architecture Migration**
+    - *Roadblock:* Found CI/CD pushing static sites utilizing obsolete script logic.
+    - *Fix:* Rewrote `.github/workflows/ci-cd.yml` stripping unused code and Render integrations.
+
+23. **Scenario: Unifying Divergent CI Actions**
+    - *Roadblock:* Discovered conflicting Actions deploying overlapping Cloudflare Pages domains.
+    - *Fix:* Isolated proper deployments prioritizing `exampapersamrita` over erroneous fallback projects.
+
+24. **Scenario: API Route Invocation Undefined**
+    - *Roadblock:* Frontend UI logged JSON parse errors processing `index.html`.
+    - *Fix:* Pinpointed API proxy failures routing JSON strings directly into the DOM space.
+
+25. **Scenario: Evaluating Cloudflare Redirect Architecture**
+    - *Roadblock:* Frontend evaluated `_redirects` aiming at `http://68.233.111.2`.
+    - *Fix:* Confirmed `_redirects` returning raw HTTP was being discarded by edge execution.
+
+26. **Scenario: Edge Origin Policy Restraints**
+    - *Roadblock:* HTTP Proxy target drops due to Cloudflare strict HTTPS origin proxy rules.
+    - *Fix:* Acknowledged requirement to encapsulate the OCI server inside a TLS tunnel adapter.
+
+27. **Scenario: Ephemeral Edge Tunneling Initialization**
+    - *Roadblock:* Installing `cloudflared` via native package managers failed (404 signatures).
+    - *Fix:* Fetched binary static asset from Cloudflare Github directly to `/tmp/cloudflared`.
+
+28. **Scenario: Binary Permission Escelation**
+    - *Roadblock:* `cloudflared` restricted from network namespace manipulation.
+    - *Fix:* Granted privileged root access executing inside `usr/local/bin`.
+
+29. **Scenario: Temporary HTTPS URL Bootstrapping**
+    - *Roadblock:* Named Tunnels required valid Cloudflare dashboard authorization. 
+    - *Fix:* Invoked a `trycloudflare` Quick Tunnel capturing output logs generating instant `.trycloudflare.com` SSL routing.
+
+30. **Scenario: Ephemeral Node Identification**
+    - *Roadblock:* Locating the quick-tunnel specific URI amidst log noise.
+    - *Fix:* Designed specific `grep -o` pipeline extracting dynamic domains natively via SSH scripts.
+
+31. **Scenario: Internal Wrangler Token Expiration**
+    - *Roadblock:* Wrangler OAuth session generated `401 Unauthorized` invoking API.
+    - *Fix:* Extracted raw API JWT token from `default.toml` seeking direct REST injection.
+
+32. **Scenario: Invalid Refresh Token Handling**
+    - *Roadblock:* Attempting automated API OAuth regeneration yielded `server_error`.
+    - *Fix:* Bypassed Wrangler CLI initiating zero-trust browser auth prompt manually relayed to operator.
+
+33. **Scenario: Identifying Correct CF Accounts**
+    - *Roadblock:* Deployments targeted incorrect Account UUIDs rendering `A request to Cloudflare API failed`.
+    - *Fix:* Listed organizational topologies mapping specific ID `96f9c0c049a5c9e65dcc67552c717e97`.
+
+34. **Scenario: Tracing Previous CF Pages Origin**
+    - *Roadblock:* New deploys persistently loaded the HTML DOM instead of routing the API. 
+    - *Fix:* Identified default SPA `_redirects` overriding the Cloudflare Pages logic tree.
+
+35. **Scenario: Testing Alternate Worker Strategy**
+    - *Roadblock:* Developed standalone Cloudflare worker intercepting fetch payloads to avoid SPA bugs.
+    - *Fix:* Packaged `worker/index.js` injecting manual origin overrides pushing to workers.dev.
+
+36. **Scenario: Direct Worker API Injections**
+    - *Roadblock:* Standard `wrangler deploy` threw 10000 Authentication issues continuously.
+    - *Fix:* Injected JS module deployment manually executing multi-part form data against Cloudflare v4 endpoints.
+
+37. **Scenario: Enabling Workers Subdomain Routing**
+    - *Roadblock:* Code uploaded successfully but remained inaccessible.
+    - *Fix:* Pushed initialization flags against `subdomain` route opening `amritapapers.anuruprkrishnan.workers.dev`.
+
+38. **Scenario: Worker Protocol Violation (1003)**
+    - *Roadblock:* Worker execution blocked fetching plain `http://68.233.111.2`.
+    - *Fix:* Verified Workers infrastructure strictly restricts cross-origin routing back to unencrypted HTTP.
+
+39. **Scenario: Generating Persistent Named Tunnels**
+    - *Roadblock:* Switched to generating a persistent Cloudflare Argo Tunnel to serve TLS encryption.
+    - *Fix:* Triggered `cfd_tunnel` creation via API generating distinct UUID endpoints.
+
+40. **Scenario: Tunnel Name Collisions**
+    - *Roadblock:* Named tunnel creation rejected as `amrita-api` namespace was occupied.
+    - *Fix:* Repolled existing tunnels mapping UUID `a0a5a18a-fc04-4bfd-8dd1-40b447527cef`.
+
+41. **Scenario: Missing Tunnel Authentication Hashes**
+    - *Roadblock:* Existing tunnel rejected ingress missing security token.
+    - *Fix:* Called API explicit path `cfd_tunnel/TUNNEL_ID/token` intercepting the 168 char JWT.
+
+42. **Scenario: Tunnel Routing Misconfigurations**
+    - *Roadblock:* Tunnel bound to edge successfully but emitted "DNS points to IPv6" indicating missing local port logic.
+    - *Fix:* Patched CF internal config pushing ingress rules redirecting traffic purely into `localhost:80`.
+
+43. **Scenario: Unnamed UUID Limitations**
+    - *Roadblock:* UUID.cfargotunnel.com requires CNAME mappings for external public resolution which weren't configured in zone logic.
+    - *Fix:* Abandoned strict UUID routing falling back securely to tracking systemd ephemeral Quick Tunnels for immediate unblocking.
+
+44. **Scenario: Systemd Daemonizing Ephemeral Tunnels**
+    - *Roadblock:* TryCloudflare links die immediately post SSH timeout or node crash.
+    - *Fix:* Constructed `cloudflared-tunnel.service` guaranteeing eternal recreation of HTTPS bridges locally.
+
+45. **Scenario: Direct Pages Upload Token Anomalies**
+    - *Roadblock:* Deploying static files direct to pages utilizing JWT tokens failed demanding JSON manifest arrays.
+    - *Fix:* Switched to environment-injection overriding Wrangler logic: `CLOUDFLARE_API_TOKEN=$CF_TOKEN wrangler deploy`.
+
+46. **Scenario: Dynamic Pages Functions Implementation**
+    - *Roadblock:* `_redirects` proxy inherently overridden by Client-Side Rendering DOM mapping.
+    - *Fix:* Coded Cloudflare Pages function `functions/api/[[path]].js` replacing primitive `_redirects` behaviors completely bypassing client-side catch-alls.
+
+47. **Scenario: Incorrect Cloudflare Functions Structuring**
+    - *Roadblock:* Functions integrated into `web/functions/` were completely ignored during build step.
+    - *Fix:* Relocated isolated architecture transferring directly to top-level `functions/` directory alongside `web/`.
+
+48. **Scenario: CORS Option Verbs Interception**
+    - *Roadblock:* Strict cross-origin policies blocked JS fetches throwing parsing errors.
+    - *Fix:* Added `OPTIONS` verb capture manually projecting `Access-Control-Allow-Origin: *` within the Serverless Worker response.
+
+49. **Scenario: Cleaning Dirty Git Stages During Deployment**
+    - *Roadblock:* Wrangler halted deployments flagging untracked working trees locally.
+    - *Fix:* Passed `--commit-dirty=true` forcibly executing payloads despite Git staging discrepancies.
+
+50. **Scenario: Final State Auditing and Purging Caches**
+    - *Roadblock:* Final API validations rendered correct JSON server-side but browser persistently loaded XML DOMs.
+    - *Fix:* Diagnosed aggressive Edge and Client Service-Worker caching behaviors. Verified raw curl responses executing flawless JSON streams enforcing manual browser re-evaluation mandates.
+
+## Conclusion 
+Every script dependency is normalized safely in Rust. The OCI deployment functions inside constrained systemd parameters shielded externally via robust Cloudflare tunnel topologies.
