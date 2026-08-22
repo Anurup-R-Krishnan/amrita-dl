@@ -114,3 +114,37 @@ sudo systemctl restart amrita-server
 Any script that touches a `.service` file must pair the edit with a reload, or the edit silently never happens.
 
 -> *Verify: `systemctl daemon-reload && systemctl restart amrita-server` starts the binary from `/usr/local/bin` as confirmed by `readlink /proc/$(pidof amrita-server)/exe`.*
+
+
+**59. Cloudflare API Token Could Read But Not Deploy**
+*The Pitfall (Deep Context):*
+For weeks, the GitHub Actions workflow that ships our frontend via `cloudflare/pages-action@v1` failed with a mystery we could not reproduce locally. The repository's `deploy.yml` was configured correctly, the secret name matched, the project name matched, and yet every push ended in a red X. No config change fixed it, because the config was never the problem.
+
+The diagnosis that finally cracked it: the `CLOUDFLARE_API_TOKEN` secret could *read* Cloudflare just fine. Listing Pages projects through the API succeeded. But the moment the action called the `/accounts/{account_id}/pages/projects/<name>/upload-token` endpoint -- the pre-flight call the Pages action makes to mint a scoped upload token before it can push a single file -- Cloudflare answered with code `10000`, Authentication error. Even dropping down to `npx wrangler pages deploy` hit the same wall, because wrangler uses the exact same upload-token endpoint under the hood. Everything pointed at one conclusion: the token could see the world but was not allowed to touch it. It had read-scoped permissions only, with the Account-level Cloudflare Pages Edit permission missing entirely.
+
+*How we faced it:*
+We rebuilt the token from scratch instead of patching the broken one, but this time with eyes open. The user created a fresh token from the "Edit Cloudflare Workers" template in the Cloudflare dashboard, then verified before saving it that the permission matrix contained the row `Account | Cloudflare Pages | Edit`. That single row is the entire difference between a token that can list projects and a token that can deploy them. Updating the GitHub side was done without ever letting the value touch the terminal scrollback:
+```bash
+gh secret set CLOUDFLARE_API_TOKEN < ./cloudflare-token.txt
+```
+Piped straight from a file, never echoed, deleted immediately after. The next workflow run went green and deployed the whole Pages site in 26 seconds. Weeks of red Xs resolved by one checkbox in a permission template.
+
+-> *Verify: `npx wrangler pages project list` succeeds AND `gh run watch` on the next push shows the pages-action step completing with a green check.*
+
+
+**60. Text File Busy On Hot Binary Swap**
+*The Pitfall (Deep Context):*
+We rebuilt the Rust server locally on the VM and tried to ship it the obvious way while the old instance was still serving traffic:
+```bash
+sudo cp target/release/server /usr/local/bin/amrita-server
+```
+And the kernel slapped our hand instantly: `cp: cannot create regular file ... Text file busy`. This is not a permissions problem, not SELinux (we had already been burned by Scenario 12), and not a typo in the path. Linux flatly refuses to let any process write to a file that is currently mapped as an executable by a running program. The moment `amrita-server` started running, its binary became immutable at that inode. Our muscle-memory deploy command was fighting a decades-old kernel guarantee designed to keep running code from mutating underneath itself.
+
+*How we faced it:*
+We accepted that the swap must happen inside a window where nothing is executing that inode. The dance that works is stop, copy, start:
+```bash
+sudo systemctl stop amrita-server && sudo cp target/release/server /usr/local/bin/amrita-server && sudo systemctl start amrita-server
+```
+Downtime is measured in milliseconds of copy time, which is invisible for this service. We also noted the alternative we did not use for completeness: install the new build to a fresh path and `mv` it over the old name, since rename onto a busy executable replaces the directory entry atomically without ever writing into the mapped file. It is the zero-downtime approach, but for a single-VM hobby API, the three-command dance is simpler and honest about its tiny gap.
+
+-> *Verify: After the stop-copy-start sequence, `systemctl is-active amrita-server` reads `active` and `readlink /proc/$(pidof amrita-server)/exe` points at the freshly copied `/usr/local/bin/amrita-server`.*

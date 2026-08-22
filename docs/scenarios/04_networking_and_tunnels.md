@@ -162,3 +162,36 @@ sudo systemctl enable cloudflared-tunnel
 sudo systemctl start cloudflared-tunnel
 ```
 -> *Verify: After killing the process with `sudo pkill cloudflared`, `systemctl status cloudflared-tunnel` shows it back `active (running)` within 10 seconds.
+
+
+**61. SELinux Silently Blocked The Tunnel Binary**
+*The Pitfall (Deep Context):*
+The tunnel daemon died and took the entire public site with it. `systemctl status cloudflared-tunnel` showed the worst possible sight: `activating (auto-restart)` looping forever, a service stuck in an endless cycle of trying, dying, and trying again five seconds later. We pulled the journal and found this pair of lines:
+
+```
+Failed to locate executable /usr/local/bin/cloudflared: Permission denied
+cloudflared-tunnel.service: Failed at step EXEC spawning /usr/local/bin/cloudflared: Permission denied
+```
+
+The trap here is how deeply misleading that message is. The binary was right there on disk at the exact path the unit file named, and `ls -l` showed a perfectly healthy `-rwxr-xr-x` mode. "Permission denied" sends you hunting through ownership and unit-file User= directives, exactly the wrong directions. We checked the exec bit anyway, it was set, and the crash-loop kept looping. The real culprit was invisible to `ls -l` entirely: SELinux. The binary carried the label `user_tmp_t`, the type assigned to files that land in `/tmp` or get copied through it, and an Oracle Linux enforcing policy does not allow init (systemd) to execute anything labeled `user_tmp_t`, no matter who owns it or which bits are set. A binary can be executable by every user on the system and still be un-executable by the kernel's security layer. Nothing in the journal, the mode bits, or the unit file ever mentions SELinux; only `ls -Z` reveals it.
+
+*How we faced it:*
+The moment we ran `ls -Z /usr/local/bin/cloudflared` and saw `unconfined_u:object_r:user_tmp_t:s0` where we expected `bin_t`, everything fell into place. The fix is one command that relabels the file to its policy-correct type:
+```bash
+sudo restorecon -v /usr/local/bin/cloudflared && sudo systemctl restart cloudflared-tunnel
+```
+`restorecon` consults the system policy's file context rules and stamped the binary back to `bin_t`, the type every normal executable in `/usr/local/bin` is supposed to carry. We applied this today and confirmed the recovery live: the label now reads `unconfined_u:object_r:bin_t:s0`, `systemctl show cloudflared-tunnel` reports `ActiveState=active`, `SubState=running`, `NRestarts=0`, and the journal shows the daemon completing its connectivity prechecks instead of dying at spawn. The durable lesson we wrote on the wall: whenever systemd says `Failed at step EXEC` on an SELinux-enforcing distro and the mode bits look fine, run `ls -Z` on the target binary before touching anything else. Label, not mystery.
+
+-> *Verify: `ls -Z /usr/local/bin/cloudflared` shows type `bin_t` (not `user_tmp_t`) and `systemctl is-active cloudflared-tunnel` returns `active` with no `Failed at step EXEC` lines in `journalctl -u cloudflared-tunnel`.*
+
+
+**62. Quick Tunnels Are Ephemeral**
+*The Pitfall (Deep Context):*
+Our tunnel is not a named tunnel. The VM runs `cloudflared tunnel` in quick mode, the account-less trycloudflare.com variety, and the journal says it out loud on every start: `Requesting new quick Tunnel on trycloudflare.com...`. Quick tunnels hand you a random public hostname each time the process boots. That sounded like a cute detail until the first restart, when we realized the old URL was simply gone. No error, no redirect, no deprecation notice anywhere. The old trycloudflare.com address just quietly stopped resolving while our bookmarks and any hard-coded references still pointed at it.
+
+The nasty part is the silence. A service restart, a VM reboot, or even the crash-recovery loop from Scenario 61 all produce the same outcome: a brand new random hostname and an orphaned old one that serves Cloudflare error 1033 to anyone still knocking on it. Every daemon restart is, invisibly, a DNS migration event.
+
+*How we faced it:*
+We did not engineer around it yet; we made it a documented, accepted limitation instead of a surprise. The operational rule is that after any cloudflared restart, the current public hostname must be read from the service journal and propagated wherever it is referenced. The honest long-term fix is a named tunnel: `cloudflared tunnel create` with a credentials file, a stable hostname on a real domain, and ingress config that survives restarts unchanged. That upgrade is queued as future work, and Scenario 28's systemd unit is already the right chassis for it. Until then, we live with the churn knowingly rather than accidentally.
+
+-> *Verify: `sudo journalctl -u cloudflared-tunnel -n 200 --no-pager | grep 'Requesting new quick Tunnel'` returns a line per restart, each corresponding to a different trycloudflare.com hostname.
