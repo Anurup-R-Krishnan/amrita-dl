@@ -517,6 +517,12 @@ async fn handle_search(
             " ORDER BY (substr(clean_title(p.course_title, p.course_code), 1, 1) BETWEEN '0' AND '9') ASC, \
                      clean_title(p.course_title, p.course_code) COLLATE NOCASE ASC, p.id ASC "
         }
+        (_, Some("title_desc")) => {
+            // Z-A mirror of title_asc: same digit-led sinking (fallbacks stay last
+            // in both directions), reversed title key, id tiebreaker for stability.
+            " ORDER BY (substr(clean_title(p.course_title, p.course_code), 1, 1) BETWEEN '0' AND '9') ASC, \
+                     clean_title(p.course_title, p.course_code) COLLATE NOCASE DESC, p.id ASC "
+        }
         (false, _) => " ORDER BY p.year DESC, p.course_code ASC, p.id ASC ",
         (true, _) => " ORDER BY bm25(papers_fts, 10.0, 5.0, 2.0, 1.0, 1.0, 1.0, 1.0) ASC, p.id ASC ",
     };
