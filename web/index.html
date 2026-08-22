@@ -1,27 +1,32 @@
 <!DOCTYPE html>
 <html lang="en" class="h-full">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Searchable archive of 19,600+ Amrita Vishwa Vidyapeetham examination question papers spanning B.Tech, M.Tech, MCA, M.Sc, and PhD programs.">
+    <meta name="description"
+        content="Searchable archive of 19,600+ Amrita Vishwa Vidyapeetham examination question papers spanning B.Tech, M.Tech, MCA, M.Sc, and PhD programs.">
     <meta name="theme-color" content="#A4123F">
     <meta property="og:title" content="Amrita Vishwa Vidyapeetham | Examination Paper Archive">
-    <meta property="og:description" content="Instant full-text search across 19,600+ official examination question papers with department, program, semester, and year filtering.">
+    <meta property="og:description"
+        content="Instant full-text search across 19,600+ official examination question papers with department, program, semester, and year filtering.">
     <meta property="og:type" content="website">
     <title>Amrita Vishwa Vidyapeetham | Examination Archive</title>
-    
+
     <!-- Open Sans Brand Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
+        rel="stylesheet">
 
     <!-- Suppress Tailwind CDN production notice & Apollo dev warnings -->
     <script>
-        (function() {
+        (function () {
             const blockTerms = ['cdn.tailwindcss.com should not be used in production', 'ApolloClient', 'Apollo DevTools', 'credentials', 'clientAwareness', 'go.apollo.dev'];
             ['warn', 'error', 'info', 'log'].forEach(method => {
                 const orig = console[method];
-                console[method] = function(...args) {
+                console[method] = function (...args) {
                     const msg = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
                     if (blockTerms.some(term => msg.includes(term))) return;
                     if (orig) orig.apply(console, args);
@@ -51,46 +56,67 @@
             }
         }
     </script>
-    
+
     <!-- Alpine.js CDN -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     <!-- FontAwesome CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <style>
-        [x-cloak] { display: none !important; }
-        ::selection { background: #A4123F; color: #FFFFFF; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #F1F1F1; }
-        ::-webkit-scrollbar-thumb { background: #A4123F; border-radius: 3px; }
-        
+        [x-cloak] {
+            display: none !important;
+        }
+
+        ::selection {
+            background: #A4123F;
+            color: #FFFFFF;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #F1F1F1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #A4123F;
+            border-radius: 3px;
+        }
+
         /* Focus-visible rings for keyboard navigation (WCAG AA) */
         *:focus-visible {
             outline: 2px solid #A4123F;
             outline-offset: 2px;
         }
+
         /* Remove focus outline for mouse clicks */
         *:focus:not(:focus-visible) {
             outline: none;
         }
-        
+
         .grid-pattern {
             background-size: 30px 30px;
-            background-image: 
+            background-image:
                 linear-gradient(to right, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
                 linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
         }
-        
+
         .grid-pattern-light {
             background-size: 30px 30px;
-            background-image: 
+            background-image:
                 linear-gradient(to right, rgba(164, 18, 63, 0.02) 1px, transparent 1px),
                 linear-gradient(to bottom, rgba(164, 18, 63, 0.02) 1px, transparent 1px);
         }
     </style>
 </head>
-<body class="bg-white text-amrita-ink font-sans min-h-full flex flex-col antialiased selection:bg-amrita-maroon selection:text-white" x-data="archiveEngine()" @keydown.window.escape="activePdf = null; suggestions = []">
+
+<body
+    class="bg-white text-amrita-ink font-sans min-h-full flex flex-col antialiased selection:bg-amrita-maroon selection:text-white"
+    x-data="archiveEngine()" @keydown.window.escape="activePdf = null; suggestions = []">
 
     <!-- Amrita Brand Maroon Hero Banner (Compact for above-the-fold) -->
     <section class="bg-amrita-maroon text-white py-8 sm:py-10 px-4 sm:px-6 lg:px-8 relative z-30">
@@ -98,10 +124,11 @@
         <div class="absolute inset-0 grid-pattern overflow-hidden pointer-events-none"></div>
 
         <div class="max-w-7xl mx-auto relative z-40 space-y-4">
-            
+
             <!-- Brand Guideline Style Typography Box Badges -->
             <div>
-                <div class="inline-block bg-white text-amrita-maroon font-extrabold px-4 py-2 text-sm sm:text-base uppercase tracking-wider shadow-md">
+                <div
+                    class="inline-block bg-white text-amrita-maroon font-extrabold px-4 py-2 text-sm sm:text-base uppercase tracking-wider shadow-md">
                     AMRITA EXAMINATION PAPER REPOSITORY
                 </div>
             </div>
@@ -113,47 +140,49 @@
             <!-- Autocomplete Search Console QoS -->
             <div class="max-w-3xl relative">
                 <form @submit.prevent="page = 1; executeSearch()" class="relative" role="search">
-                    <div class="flex items-center bg-white rounded-xl shadow-2xl overflow-hidden p-1 border-2 border-white/20 focus-within:border-amrita-gold transition-all">
+                    <div
+                        class="flex items-center bg-white rounded-xl shadow-2xl overflow-hidden p-1 border-2 border-white/20 focus-within:border-amrita-gold transition-all">
                         <div class="pl-4 pr-2 text-gray-400">
                             <i class="fa-solid fa-magnifying-glass text-base"></i>
                         </div>
-                        <input type="text" 
-                               x-model="searchQuery" 
-                               @input.debounce.200ms="fetchSuggestions()" 
-                               @keydown.arrow-down.prevent="navigateSuggest(1)"
-                               @keydown.arrow-up.prevent="navigateSuggest(-1)"
-                               @keydown.enter="selectCurrentSuggest()"
-                               placeholder="Search by course code, title, or keyword..." 
-                               aria-label="Search exam papers by code, title, or keyword"
-                               class="w-full text-amrita-ink placeholder-gray-400 font-semibold text-sm focus:outline-none px-2 py-2.5">
-                        
+                        <input type="text" x-model="searchQuery" @input.debounce.200ms="fetchSuggestions()"
+                            @keydown.arrow-down.prevent="navigateSuggest(1)"
+                            @keydown.arrow-up.prevent="navigateSuggest(-1)" @keydown.enter="selectCurrentSuggest()"
+                            placeholder="Search by course code, title, or keyword..."
+                            aria-label="Search exam papers by code, title, or keyword"
+                            class="w-full text-amrita-ink placeholder-gray-400 font-semibold text-sm focus:outline-none px-2 py-2.5">
+
                         <template x-if="searchQuery">
-                            <button type="button" @click="searchQuery = ''; suggestions = []; executeSearch()" aria-label="Clear search text" class="px-3 text-gray-400 hover:text-gray-600">
+                            <button type="button" @click="searchQuery = ''; suggestions = []; executeSearch()"
+                                aria-label="Clear search text" class="px-3 text-gray-400 hover:text-gray-600">
                                 <i class="fa-solid fa-xmark"></i>
                             </button>
                         </template>
 
-                        <button type="submit" aria-label="Submit search" class="bg-amrita-maroon hover:bg-amrita-dark text-white font-bold px-5 py-2.5 rounded-lg text-sm transition-colors shrink-0">
+                        <button type="submit" aria-label="Submit search"
+                            class="bg-amrita-maroon hover:bg-amrita-dark text-white font-bold px-5 py-2.5 rounded-lg text-sm transition-colors shrink-0">
                             Search
                         </button>
                     </div>
                 </form>
 
                 <!-- Live Auto-Suggest Dropdown Overlay -->
-                <div x-show="suggestions.length > 0" 
-                     @click.away="suggestions = []" 
-                     x-transition.opacity
-                     class="absolute left-0 right-0 top-full mt-2 bg-white text-amrita-ink rounded-xl shadow-2xl border-2 border-amrita-maroon overflow-hidden z-50 divide-y divide-gray-100"
-                     style="display: none;">
+                <div x-show="suggestions.length > 0" @click.away="suggestions = []" x-transition.opacity
+                    class="absolute left-0 right-0 top-full mt-2 bg-white text-amrita-ink rounded-xl shadow-2xl border-2 border-amrita-maroon overflow-hidden z-50 divide-y divide-gray-100"
+                    style="display: none;">
                     <template x-for="(item, idx) in suggestions" :key="idx">
-                        <div @click="selectSuggest(item)" 
-                             :class="{ 'bg-amrita-light': suggestIdx === idx }"
-                             class="p-3.5 hover:bg-amrita-light cursor-pointer flex items-center justify-between transition-colors group">
+                        <div @click="selectSuggest(item)" :class="{ 'bg-amrita-light': suggestIdx === idx }"
+                            class="p-3.5 hover:bg-amrita-light cursor-pointer flex items-center justify-between transition-colors group">
                             <div class="flex items-center space-x-2 truncate pr-2">
-                                <span class="font-mono font-bold text-xs bg-amrita-maroon text-white px-2 py-0.5 rounded shadow-sm shrink-0" x-text="item.course_code"></span>
-                                <span class="font-bold text-sm text-gray-900 group-hover:text-amrita-maroon transition-colors truncate" x-text="item.course_title"></span>
+                                <span
+                                    class="font-mono font-bold text-xs bg-amrita-maroon text-white px-2 py-0.5 rounded shadow-sm shrink-0"
+                                    x-text="item.course_code"></span>
+                                <span
+                                    class="font-bold text-sm text-gray-900 group-hover:text-amrita-maroon transition-colors truncate"
+                                    x-text="item.course_title"></span>
                             </div>
-                            <span class="text-xs text-gray-500 font-semibold shrink-0" x-text="`${item.program} • ${item.department}`"></span>
+                            <span class="text-xs text-gray-500 font-semibold shrink-0"
+                                x-text="`${item.program} • ${item.department}`"></span>
                         </div>
                     </template>
                 </div>
@@ -165,23 +194,28 @@
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6 grid-pattern-light">
 
         <!-- Section Title: Brand Promise Accent -->
-        <div id="filters" class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b-2 border-amrita-maroon pb-3 gap-4">
+        <div id="filters"
+            class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b-2 border-amrita-maroon pb-3 gap-4">
             <div class="flex items-center space-x-4">
                 <div class="w-1.5 h-8 bg-amrita-maroon"></div>
                 <div>
                     <h2 class="font-extrabold text-xl tracking-tight text-amrita-maroon uppercase">ARCHIVE FILTERS</h2>
                 </div>
             </div>
-            
-            <button @click="resetAll()" aria-label="Reset all search filters" class="text-xs font-bold text-amrita-maroon hover:underline flex items-center gap-1.5">
+
+            <button @click="resetAll()" aria-label="Reset all search filters"
+                class="text-xs font-bold text-amrita-maroon hover:underline flex items-center gap-1.5">
                 <i class="fa-solid fa-rotate-left"></i> Reset All Filters
             </button>
         </div>
 
         <!-- Active Filter Chips Bar -->
-        <div x-show="hasActiveFilters()" x-transition class="flex flex-wrap items-center gap-2" aria-label="Active filter chips">
+        <div x-show="hasActiveFilters()" x-transition class="flex flex-wrap items-center gap-2"
+            aria-label="Active filter chips">
             <template x-for="(chip, key) in activeFilterChips()">
-                <div :key="key" class="bg-amrita-light text-amrita-maroon text-xs font-bold px-3 py-1.5 rounded-lg border border-amrita-maroon/25 flex items-center gap-2 cursor-pointer hover:bg-amrita-maroon hover:text-white transition-colors" @click="removeFilter(key)">
+                <div :key="key"
+                    class="bg-amrita-light text-amrita-maroon text-xs font-bold px-3 py-1.5 rounded-lg border border-amrita-maroon/25 flex items-center gap-2 cursor-pointer hover:bg-amrita-maroon hover:text-white transition-colors"
+                    @click="removeFilter(key)">
                     <span x-text="chip"></span>
                     <i class="fa-solid fa-xmark text-[10px]"></i>
                 </div>
@@ -190,29 +224,38 @@
 
         <!-- 10+ Feature Custom Alpine.js Dropdowns System -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            
+
             <!-- Custom Dropdown 1: Department -->
             <div class="relative" x-data="{ open: false, filterSearch: '' }">
                 <label class="block text-xs font-extrabold uppercase text-gray-500 mb-1.5">Department</label>
-                <button @click="open = !open" 
-                        aria-label="Filter by department"
-                        class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors">
-                    <span class="truncate" x-text="filters.department === 'All' ? 'All Departments' : filters.department"></span>
-                    <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform" :class="{ 'rotate-180': open }"></i>
+                <button @click="open = !open" aria-label="Filter by department"
+                    class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors">
+                    <span class="truncate"
+                        x-text="filters.department === 'All' ? 'All Departments' : filters.department"></span>
+                    <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform"
+                        :class="{ 'rotate-180': open }"></i>
                 </button>
 
-                <div x-show="open" @click.away="open = false" x-transition.opacity class="absolute left-0 right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-2" style="display: none;">
-                    <input type="text" x-model="filterSearch" placeholder="Search department..." class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
+                <div x-show="open" @click.away="open = false" x-transition.opacity
+                    class="absolute left-0 right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-2"
+                    style="display: none;">
+                    <input type="text" x-model="filterSearch" placeholder="Search department..."
+                        class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
                     <div class="max-h-56 overflow-y-auto space-y-1">
-                        <div @click="filters.department = 'All'; open = false; executeSearch()" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.department === 'All' }">
+                        <div @click="filters.department = 'All'; open = false; executeSearch()"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.department === 'All' }">
                             <span>All Departments</span>
                             <i x-show="filters.department === 'All'" class="fa-solid fa-check text-amrita-maroon"></i>
                         </div>
                         <template x-for="d in facetData.departments" :key="d[0]">
                             <template x-if="!filterSearch || d[0].toLowerCase().includes(filterSearch.toLowerCase())">
-                                <div @click="filters.department = d[0]; open = false; executeSearch()" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.department === d[0] }">
+                                <div @click="filters.department = d[0]; open = false; executeSearch()"
+                                    class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                                    :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.department === d[0] }">
                                     <span x-text="d[0]"></span>
-                                    <span class="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded" x-text="d[1]"></span>
+                                    <span class="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded"
+                                        x-text="d[1]"></span>
                                 </div>
                             </template>
                         </template>
@@ -223,25 +266,34 @@
             <!-- Custom Dropdown 2: Degree Program -->
             <div class="relative" x-data="{ open: false, filterSearch: '' }">
                 <label class="block text-xs font-extrabold uppercase text-gray-500 mb-1.5">Degree Program</label>
-                <button @click="open = !open" 
-                        aria-label="Filter by degree program"
-                        class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors">
+                <button @click="open = !open" aria-label="Filter by degree program"
+                    class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors">
                     <span class="truncate" x-text="filters.program === 'All' ? 'All Programs' : filters.program"></span>
-                    <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform" :class="{ 'rotate-180': open }"></i>
+                    <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform"
+                        :class="{ 'rotate-180': open }"></i>
                 </button>
 
-                <div x-show="open" @click.away="open = false" x-transition.opacity class="absolute left-0 right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-2" style="display: none;">
-                    <input type="text" x-model="filterSearch" placeholder="Search program..." aria-label="Search program filter" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
+                <div x-show="open" @click.away="open = false" x-transition.opacity
+                    class="absolute left-0 right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-2"
+                    style="display: none;">
+                    <input type="text" x-model="filterSearch" placeholder="Search program..."
+                        aria-label="Search program filter"
+                        class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
                     <div class="max-h-56 overflow-y-auto space-y-1">
-                        <div @click="filters.program = 'All'; open = false; executeSearch()" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.program === 'All' }">
+                        <div @click="filters.program = 'All'; open = false; executeSearch()"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.program === 'All' }">
                             <span>All Programs</span>
                             <i x-show="filters.program === 'All'" class="fa-solid fa-check text-amrita-maroon"></i>
                         </div>
                         <template x-for="p in facetData.programs" :key="p[0]">
                             <template x-if="!filterSearch || p[0].toLowerCase().includes(filterSearch.toLowerCase())">
-                                <div @click="filters.program = p[0]; open = false; executeSearch()" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.program === p[0] }">
+                                <div @click="filters.program = p[0]; open = false; executeSearch()"
+                                    class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                                    :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.program === p[0] }">
                                     <span x-text="p[0]"></span>
-                                    <span class="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded" x-text="p[1]"></span>
+                                    <span class="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded"
+                                        x-text="p[1]"></span>
                                 </div>
                             </template>
                         </template>
@@ -252,25 +304,35 @@
             <!-- Custom Dropdown 3: Category -->
             <div class="relative" x-data="{ open: false, filterSearch: '' }">
                 <label class="block text-xs font-extrabold uppercase text-gray-500 mb-1.5">Course Category</label>
-                <button @click="open = !open" 
-                        aria-label="Filter by course category"
-                        class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors">
-                    <span class="truncate" x-text="filters.category === 'All' ? 'All Categories' : filters.category"></span>
-                    <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform" :class="{ 'rotate-180': open }"></i>
+                <button @click="open = !open" aria-label="Filter by course category"
+                    class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors">
+                    <span class="truncate"
+                        x-text="filters.category === 'All' ? 'All Categories' : filters.category"></span>
+                    <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform"
+                        :class="{ 'rotate-180': open }"></i>
                 </button>
 
-                <div x-show="open" @click.away="open = false" x-transition.opacity class="absolute left-0 right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-2" style="display: none;">
-                    <input type="text" x-model="filterSearch" placeholder="Search category..." aria-label="Search category filter" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
+                <div x-show="open" @click.away="open = false" x-transition.opacity
+                    class="absolute left-0 right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-2"
+                    style="display: none;">
+                    <input type="text" x-model="filterSearch" placeholder="Search category..."
+                        aria-label="Search category filter"
+                        class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
                     <div class="max-h-56 overflow-y-auto space-y-1">
-                        <div @click="filters.category = 'All'; open = false; executeSearch()" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.category === 'All' }">
+                        <div @click="filters.category = 'All'; open = false; executeSearch()"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.category === 'All' }">
                             <span>All Categories</span>
                             <i x-show="filters.category === 'All'" class="fa-solid fa-check text-amrita-maroon"></i>
                         </div>
                         <template x-for="c in facetData.categories" :key="c[0]">
                             <template x-if="!filterSearch || c[0].toLowerCase().includes(filterSearch.toLowerCase())">
-                                <div @click="filters.category = c[0]; open = false; executeSearch()" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.category === c[0] }">
+                                <div @click="filters.category = c[0]; open = false; executeSearch()"
+                                    class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                                    :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.category === c[0] }">
                                     <span x-text="c[0]"></span>
-                                    <span class="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded" x-text="c[1]"></span>
+                                    <span class="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded"
+                                        x-text="c[1]"></span>
                                 </div>
                             </template>
                         </template>
@@ -281,25 +343,34 @@
             <!-- Custom Dropdown 4: Academic Year -->
             <div class="relative" x-data="{ open: false, filterSearch: '' }">
                 <label class="block text-xs font-extrabold uppercase text-gray-500 mb-1.5">Academic Year</label>
-                <button @click="open = !open" 
-                        aria-label="Filter by academic year"
-                        class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors">
+                <button @click="open = !open" aria-label="Filter by academic year"
+                    class="w-full bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-xl p-3 text-left font-bold text-xs text-gray-800 flex items-center justify-between shadow-sm transition-colors">
                     <span class="truncate" x-text="filters.year === 'All' ? 'All Academic Years' : filters.year"></span>
-                    <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform" :class="{ 'rotate-180': open }"></i>
+                    <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform"
+                        :class="{ 'rotate-180': open }"></i>
                 </button>
 
-                <div x-show="open" @click.away="open = false" x-transition.opacity class="absolute left-0 right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-2" style="display: none;">
-                    <input type="text" x-model="filterSearch" placeholder="Search year..." aria-label="Search academic year filter" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
+                <div x-show="open" @click.away="open = false" x-transition.opacity
+                    class="absolute left-0 right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-2"
+                    style="display: none;">
+                    <input type="text" x-model="filterSearch" placeholder="Search year..."
+                        aria-label="Search academic year filter"
+                        class="w-full border border-gray-200 rounded-lg p-2 text-xs font-semibold focus:outline-none focus:border-amrita-maroon">
                     <div class="max-h-56 overflow-y-auto space-y-1">
-                        <div @click="filters.year = 'All'; open = false; executeSearch()" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.year === 'All' }">
+                        <div @click="filters.year = 'All'; open = false; executeSearch()"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.year === 'All' }">
                             <span>All Academic Years</span>
                             <i x-show="filters.year === 'All'" class="fa-solid fa-check text-amrita-maroon"></i>
                         </div>
                         <template x-for="y in facetData.years" :key="y[0]">
                             <template x-if="!filterSearch || y[0].toLowerCase().includes(filterSearch.toLowerCase())">
-                                <div @click="filters.year = y[0]; open = false; executeSearch()" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.year === y[0] }">
+                                <div @click="filters.year = y[0]; open = false; executeSearch()"
+                                    class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                                    :class="{ 'bg-amrita-light text-amrita-maroon font-bold': filters.year === y[0] }">
                                     <span x-text="y[0]"></span>
-                                    <span class="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded" x-text="y[1]"></span>
+                                    <span class="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded"
+                                        x-text="y[1]"></span>
                                 </div>
                             </template>
                         </template>
@@ -310,49 +381,66 @@
 
         <!-- Result Overview Stats Header with Sort, Per-Page, View Toggle Controls -->
         <div id="archive" class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4">
-            <span class="font-semibold text-xs text-gray-600">Showing <strong x-text="searchHits.length" class="text-amrita-maroon font-extrabold tabular-nums">0</strong> of <strong x-text="totalResults" class="text-amrita-maroon font-extrabold tabular-nums">0</strong> matching exam papers</span>
+            <span class="font-semibold text-xs text-gray-600">Showing <strong x-text="searchHits.length"
+                    class="text-amrita-maroon font-extrabold tabular-nums">0</strong> of <strong x-text="totalResults"
+                    class="text-amrita-maroon font-extrabold tabular-nums">0</strong> matching exam papers</span>
             <div class="flex items-center gap-2 flex-wrap">
                 <!-- Select All Page Button -->
-                <button @click="toggleSelectAllPage()" 
-                        :class="isPageAllSelected() ? 'bg-amrita-maroon text-white border-amrita-maroon' : 'bg-white text-gray-700 border-gray-200 hover:border-amrita-maroon hover:bg-amrita-light'" 
-                        aria-label="Select or deselect all papers on this page"
-                        class="px-2.5 py-1.5 border-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5">
+                <button @click="toggleSelectAllPage()"
+                    :class="isPageAllSelected() ? 'bg-amrita-maroon text-white border-amrita-maroon' : 'bg-white text-gray-700 border-gray-200 hover:border-amrita-maroon hover:bg-amrita-light'"
+                    aria-label="Select or deselect all papers on this page"
+                    class="px-2.5 py-1.5 border-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5">
                     <i class="fa-solid" :class="isPageAllSelected() ? 'fa-square-check' : 'fa-square'"></i>
                     <span x-text="isPageAllSelected() ? 'Deselect Page' : 'Select Page'"></span>
                 </button>
                 <!-- View Toggle -->
                 <div class="flex items-center border-2 border-gray-200 rounded-lg overflow-hidden">
-                    <button @click="toggleView('grid')" :class="viewMode === 'grid' ? 'bg-amrita-maroon text-white' : 'bg-white text-gray-500 hover:text-gray-800'" aria-label="Grid view" class="px-2.5 py-1.5 text-xs font-bold transition-colors">
+                    <button @click="toggleView('grid')"
+                        :class="viewMode === 'grid' ? 'bg-amrita-maroon text-white' : 'bg-white text-gray-500 hover:text-gray-800'"
+                        aria-label="Grid view" class="px-2.5 py-1.5 text-xs font-bold transition-colors">
                         <i class="fa-solid fa-grip"></i>
                     </button>
-                    <button @click="toggleView('list')" :class="viewMode === 'list' ? 'bg-amrita-maroon text-white' : 'bg-white text-gray-500 hover:text-gray-800'" aria-label="List view" class="px-2.5 py-1.5 text-xs font-bold transition-colors">
+                    <button @click="toggleView('list')"
+                        :class="viewMode === 'list' ? 'bg-amrita-maroon text-white' : 'bg-white text-gray-500 hover:text-gray-800'"
+                        aria-label="List view" class="px-2.5 py-1.5 text-xs font-bold transition-colors">
                         <i class="fa-solid fa-list"></i>
                     </button>
                 </div>
                 <!-- Sort By Dropdown -->
                 <div class="relative" x-data="{ open: false }">
-                    <button @click="open = !open"
-                            aria-label="Sort results by"
-                            class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-left font-bold text-xs text-gray-800 flex items-center gap-2 shadow-sm transition-colors">
+                    <button @click="open = !open" aria-label="Sort results by"
+                        class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-left font-bold text-xs text-gray-800 flex items-center gap-2 shadow-sm transition-colors">
                         <span class="text-gray-400 font-semibold">Sort:</span>
-                        <span x-text="sort === 'newest' ? 'Newest' : sort === 'year_asc' ? 'Oldest' : sort === 'code_asc' ? 'Code A-Z' : sort === 'title_asc' ? 'Title A-Z' : 'Any'"></span>
-                        <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform" :class="{ 'rotate-180': open }"></i>
+                        <span
+                            x-text="sort === 'newest' ? 'Newest' : sort === 'year_asc' ? 'Oldest' : sort === 'code_asc' ? 'Code A-Z' : sort === 'title_asc' ? 'Title A-Z' : 'Any'"></span>
+                        <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform"
+                            :class="{ 'rotate-180': open }"></i>
                     </button>
 
-                    <div x-show="open" @click.away="open = false" x-transition.opacity class="absolute right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-1 min-w-[140px]" style="display: none;">
-                        <div @click="changeSort('newest'); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': sort === 'newest' }">
+                    <div x-show="open" @click.away="open = false" x-transition.opacity
+                        class="absolute right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-1 min-w-[140px]"
+                        style="display: none;">
+                        <div @click="changeSort('newest'); open = false"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': sort === 'newest' }">
                             <span>Newest First</span>
                             <i x-show="sort === 'newest'" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
-                        <div @click="changeSort('year_asc'); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': sort === 'year_asc' }">
+                        <div @click="changeSort('year_asc'); open = false"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': sort === 'year_asc' }">
                             <span>Oldest First</span>
                             <i x-show="sort === 'year_asc'" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
-                        <div @click="changeSort('code_asc'); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': sort === 'code_asc' }">
+                        <div @click="changeSort('code_asc'); open = false"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': sort === 'code_asc' }">
                             <span>Code A-Z</span>
                             <i x-show="sort === 'code_asc'" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
-                        <div @click="changeSort('title_asc'); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': sort === 'title_asc' }">
+                        <div @click="changeSort('title_asc'); open = false"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': sort === 'title_asc' }">
                             <span>Title A-Z</span>
                             <i x-show="sort === 'title_asc'" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
@@ -360,28 +448,38 @@
                 </div>
                 <!-- Items Per Page Selector -->
                 <div class="relative" x-data="{ open: false }">
-                    <button @click="open = !open"
-                            aria-label="Items per page"
-                            class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-left font-bold text-xs text-gray-800 flex items-center gap-2 shadow-sm transition-colors tabular-nums">
+                    <button @click="open = !open" aria-label="Items per page"
+                        class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-left font-bold text-xs text-gray-800 flex items-center gap-2 shadow-sm transition-colors tabular-nums">
                         <span class="text-gray-400 font-semibold">Per page:</span>
                         <span x-text="pageSize ? `${pageSize}` : '24'"></span>
-                        <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform" :class="{ 'rotate-180': open }"></i>
+                        <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform"
+                            :class="{ 'rotate-180': open }"></i>
                     </button>
 
-                    <div x-show="open" @click.away="open = false" x-transition.opacity class="absolute right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-1 min-w-[100px]" style="display: none;">
-                        <div @click="changePageSize(12); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': pageSize === 12 }">
+                    <div x-show="open" @click.away="open = false" x-transition.opacity
+                        class="absolute right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-1 min-w-[100px]"
+                        style="display: none;">
+                        <div @click="changePageSize(12); open = false"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': pageSize === 12 }">
                             <span>12</span>
                             <i x-show="pageSize === 12" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
-                        <div @click="changePageSize(24); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': pageSize === 24 }">
+                        <div @click="changePageSize(24); open = false"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': pageSize === 24 }">
                             <span>24</span>
                             <i x-show="pageSize === 24" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
-                        <div @click="changePageSize(48); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': pageSize === 48 }">
+                        <div @click="changePageSize(48); open = false"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': pageSize === 48 }">
                             <span>48</span>
                             <i x-show="pageSize === 48" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
-                        <div @click="changePageSize(96); open = false" class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between" :class="{ 'bg-amrita-light text-amrita-maroon font-bold': pageSize === 96 }">
+                        <div @click="changePageSize(96); open = false"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': pageSize === 96 }">
                             <span>96</span>
                             <i x-show="pageSize === 96" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
                         </div>
@@ -409,47 +507,67 @@
         </div>
 
         <!-- Paper Cards Grid View -->
-        <div x-show="!isResolving && searchHits.length > 0 && viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div x-show="!isResolving && searchHits.length > 0 && viewMode === 'grid'"
+            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             <template x-for="item in searchHits" :key="item.id">
                 <div class="bg-white rounded-xl border shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col justify-between overflow-hidden relative"
-                     :class="selectedPaths.includes(item.relative_path) ? 'border-amrita-maroon shadow-md' : 'border-gray-200'">
+                    :class="selectedPaths.includes(item.relative_path) ? 'border-amrita-maroon shadow-md' : 'border-gray-200'">
                     <!-- Selection Accent Bar -->
-                    <div class="absolute left-0 top-0 bottom-0 w-1 transition-colors" :class="selectedPaths.includes(item.relative_path) ? 'bg-amrita-maroon' : 'bg-transparent'"></div>
+                    <div class="absolute left-0 top-0 bottom-0 w-1 transition-colors"
+                        :class="selectedPaths.includes(item.relative_path) ? 'bg-amrita-maroon' : 'bg-transparent'">
+                    </div>
                     <div class="p-5 space-y-3 pl-6">
                         <!-- Top Row: Course Code + Year/Exam Type Badges -->
                         <div class="flex items-start justify-between gap-2">
-                            <span class="bg-amrita-light text-amrita-maroon font-mono font-bold text-xs px-2.5 py-1 rounded border border-amrita-maroon/20" x-text="item.course_code || 'N/A'"></span>
+                            <span
+                                class="bg-amrita-light text-amrita-maroon font-mono font-bold text-xs px-2.5 py-1 rounded border border-amrita-maroon/20"
+                                x-text="item.course_code || 'N/A'"></span>
                             <div class="flex items-center gap-1.5 shrink-0">
-                                <span class="bg-amber-50 text-amber-800 border border-amber-200/60 font-semibold text-[11px] px-2 py-0.5 rounded" x-text="item.exam_type"></span>
-                                <span class="bg-gray-100 text-gray-700 font-semibold text-xs px-2 py-0.5 rounded tabular-nums" x-text="item.year"></span>
+                                <span
+                                    class="bg-amber-50 text-amber-800 border border-amber-200/60 font-semibold text-[11px] px-2 py-0.5 rounded"
+                                    x-text="item.exam_type"></span>
+                                <span
+                                    class="bg-gray-100 text-gray-700 font-semibold text-xs px-2 py-0.5 rounded tabular-nums"
+                                    x-text="item.year"></span>
                             </div>
                         </div>
                         <!-- Title -->
-                        <h4 class="font-bold text-sm text-gray-900 leading-snug line-clamp-2 hover:text-amrita-maroon transition-colors cursor-pointer" @click="openPdfModal(item)" x-text="item.course_title"></h4>
+                        <h4 class="font-bold text-sm text-gray-900 leading-snug line-clamp-2 hover:text-amrita-maroon transition-colors cursor-pointer"
+                            @click="openPdfModal(item)" x-text="item.course_title"></h4>
                         <!-- Grouped Metadata Line (no repetitive icons) -->
                         <div class="text-xs text-gray-600 pt-2 border-t border-gray-100">
-                            <p class="truncate font-medium" x-text="`${item.department} · ${item.program} · ${item.semester}`"></p>
+                            <p class="truncate font-medium"
+                                x-text="`${item.department} · ${item.program} · ${item.semester}`"></p>
                         </div>
                     </div>
                     <!-- Card Actions: Ghost/Outline style, split button -->
                     <div class="px-5 pb-4 pl-6 pt-1 flex items-center justify-between gap-2 border-t border-gray-100">
                         <div class="flex items-center gap-2">
                             <label class="flex items-center cursor-pointer shrink-0 select-none">
-                                <input type="checkbox" :value="item.relative_path" x-model="selectedPaths" class="w-4 h-4 rounded border-2 border-gray-300 text-amrita-maroon focus:ring-0 focus:ring-offset-0 cursor-pointer">
+                                <input type="checkbox" :value="item.relative_path" x-model="selectedPaths"
+                                    class="w-4 h-4 rounded border-2 border-gray-300 text-amrita-maroon focus:ring-0 focus:ring-offset-0 cursor-pointer">
                             </label>
                             <!-- Copy Share Link -->
-                            <button @click="copyShareLink(item)" :aria-label="copySuccessPath === item.relative_path ? 'Link copied' : 'Copy share link'" class="p-1.5 rounded-lg text-gray-400 hover:text-amrita-maroon transition-colors" :title="copySuccessPath === item.relative_path ? 'Link copied!' : 'Copy share link'">
+                            <button @click="copyShareLink(item)"
+                                :aria-label="copySuccessPath === item.relative_path ? 'Link copied' : 'Copy share link'"
+                                class="p-1.5 rounded-lg text-gray-400 hover:text-amrita-maroon transition-colors"
+                                :title="copySuccessPath === item.relative_path ? 'Link copied!' : 'Copy share link'">
                                 <i class="fa-solid fa-check" x-show="copySuccessPath === item.relative_path"></i>
                                 <i class="fa-solid fa-link" x-show="copySuccessPath !== item.relative_path"></i>
                             </button>
                         </div>
                         <!-- Split Button: View (outline) + Download (icon) -->
-                        <div class="flex items-center overflow-hidden rounded-lg border border-amrita-maroon/30 shrink-0">
-                            <button @click="openPdfModal(item)" aria-label="View PDF document" class="bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold px-3 py-1.5 transition-colors flex items-center gap-1.5">
+                        <div
+                            class="flex items-center overflow-hidden rounded-lg border border-amrita-maroon/30 shrink-0">
+                            <button @click="openPdfModal(item)" aria-label="View PDF document"
+                                class="bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold px-3 py-1.5 transition-colors flex items-center gap-1.5">
                                 <i class="fa-solid fa-eye text-[11px]"></i> View
                             </button>
                             <div class="w-px h-7 bg-amrita-maroon/20"></div>
-                            <a :href="pdfUrl(item)" download :download="item.relative_path.split('/').pop()" aria-label="Download PDF" class="bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold p-1.5 transition-colors" title="Download">
+                            <a :href="pdfUrl(item)" download :download="item.relative_path.split('/').pop()"
+                                aria-label="Download PDF"
+                                class="bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold p-1.5 transition-colors"
+                                title="Download">
                                 <i class="fa-solid fa-download"></i>
                             </a>
                         </div>
@@ -462,32 +580,46 @@
         <div x-show="!isResolving && searchHits.length > 0 && viewMode === 'list'" class="space-y-2">
             <template x-for="item in searchHits" :key="item.id">
                 <div class="bg-white rounded-xl border shadow-sm hover:shadow-md transition-all flex items-center gap-4 overflow-hidden relative p-3 pr-4"
-                     :class="selectedPaths.includes(item.relative_path) ? 'border-amrita-maroon' : 'border-gray-200'">
+                    :class="selectedPaths.includes(item.relative_path) ? 'border-amrita-maroon' : 'border-gray-200'">
                     <!-- Checkbox -->
                     <label class="flex items-center cursor-pointer shrink-0 select-none">
-                        <input type="checkbox" :value="item.relative_path" x-model="selectedPaths" class="w-4 h-4 rounded border-2 border-gray-300 text-amrita-maroon focus:ring-0 focus:ring-offset-0 cursor-pointer">
+                        <input type="checkbox" :value="item.relative_path" x-model="selectedPaths"
+                            class="w-4 h-4 rounded border-2 border-gray-300 text-amrita-maroon focus:ring-0 focus:ring-offset-0 cursor-pointer">
                     </label>
                     <!-- Course Code -->
-                    <span class="bg-amrita-light text-amrita-maroon font-mono font-bold text-xs px-2.5 py-1 rounded border border-amrita-maroon/20 shrink-0" x-text="item.course_code || 'N/A'"></span>
+                    <span
+                        class="bg-amrita-light text-amrita-maroon font-mono font-bold text-xs px-2.5 py-1 rounded border border-amrita-maroon/20 shrink-0"
+                        x-text="item.course_code || 'N/A'"></span>
                     <!-- Title -->
-                    <h4 class="font-bold text-sm text-gray-900 truncate flex-1 cursor-pointer hover:text-amrita-maroon transition-colors" @click="openPdfModal(item)" x-text="item.course_title"></h4>
+                    <h4 class="font-bold text-sm text-gray-900 truncate flex-1 cursor-pointer hover:text-amrita-maroon transition-colors"
+                        @click="openPdfModal(item)" x-text="item.course_title"></h4>
                     <!-- Metadata -->
-                    <span class="text-xs text-gray-500 font-medium hidden lg:block truncate max-w-[250px]" x-text="`${item.department} · ${item.program}`"></span>
+                    <span class="text-xs text-gray-500 font-medium hidden lg:block truncate max-w-[250px]"
+                        x-text="`${item.department} · ${item.program}`"></span>
                     <!-- Badges -->
                     <div class="flex items-center gap-1.5 shrink-0">
-                        <span class="bg-amber-50 text-amber-800 border border-amber-200/60 font-semibold text-[11px] px-2 py-0.5 rounded" x-text="item.exam_type"></span>
-                        <span class="bg-gray-100 text-gray-700 font-semibold text-xs px-2 py-0.5 rounded tabular-nums" x-text="item.year"></span>
+                        <span
+                            class="bg-amber-50 text-amber-800 border border-amber-200/60 font-semibold text-[11px] px-2 py-0.5 rounded"
+                            x-text="item.exam_type"></span>
+                        <span class="bg-gray-100 text-gray-700 font-semibold text-xs px-2 py-0.5 rounded tabular-nums"
+                            x-text="item.year"></span>
                     </div>
                     <!-- Actions -->
                     <div class="flex items-center gap-2 shrink-0">
-                        <button @click="copyShareLink(item)" :aria-label="copySuccessPath === item.relative_path ? 'Link copied' : 'Copy share link'" class="p-1.5 rounded-lg text-gray-400 hover:text-amrita-maroon transition-colors">
+                        <button @click="copyShareLink(item)"
+                            :aria-label="copySuccessPath === item.relative_path ? 'Link copied' : 'Copy share link'"
+                            class="p-1.5 rounded-lg text-gray-400 hover:text-amrita-maroon transition-colors">
                             <i class="fa-solid fa-check" x-show="copySuccessPath === item.relative_path"></i>
                             <i class="fa-solid fa-link" x-show="copySuccessPath !== item.relative_path"></i>
                         </button>
-                        <button @click="openPdfModal(item)" aria-label="View PDF" class="border border-amrita-maroon/30 bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+                        <button @click="openPdfModal(item)" aria-label="View PDF"
+                            class="border border-amrita-maroon/30 bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
                             <i class="fa-solid fa-eye text-[11px]"></i> View
                         </button>
-                        <a :href="pdfUrl(item)" download :download="item.relative_path.split('/').pop()" aria-label="Download PDF" class="border border-amrita-maroon/30 bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold p-1.5 rounded-lg transition-colors" title="Download">
+                        <a :href="pdfUrl(item)" download :download="item.relative_path.split('/').pop()"
+                            aria-label="Download PDF"
+                            class="border border-amrita-maroon/30 bg-white hover:bg-amrita-light text-amrita-maroon text-xs font-bold p-1.5 rounded-lg transition-colors"
+                            title="Download">
                             <i class="fa-solid fa-download"></i>
                         </a>
                     </div>
@@ -496,9 +628,11 @@
         </div>
 
         <!-- Enhanced Pagination Controls -->
-        <div x-show="!isResolving && totalPages > 1" class="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-200 pt-6">
+        <div x-show="!isResolving && totalPages > 1"
+            class="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-200 pt-6">
             <div class="flex items-center gap-2">
-                <button @click="changePage(page - 1)" :disabled="page <= 1" aria-label="Go to previous page" class="px-3 py-2 bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg text-xs font-bold text-gray-700 hover:bg-amrita-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5">
+                <button @click="changePage(page - 1)" :disabled="page <= 1" aria-label="Go to previous page"
+                    class="px-3 py-2 bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg text-xs font-bold text-gray-700 hover:bg-amrita-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5">
                     <i class="fa-solid fa-chevron-left text-[10px]"></i> Prev
                 </button>
                 <!-- Page Numbers -->
@@ -506,53 +640,64 @@
                     <template x-for="(p, idx) in pageNumbers" :key="idx">
                         <div class="inline-flex items-center">
                             <span x-show="p === '...'" class="text-gray-400 font-bold text-xs px-1">...</span>
-                            <button x-show="p !== '...'" @click="changePage(p)" :aria-label="`Go to page ${p}`" :class="p === page ? 'bg-amrita-maroon text-white border-amrita-maroon' : 'bg-white text-gray-700 border-gray-200 hover:border-amrita-maroon hover:bg-amrita-light'" class="w-9 h-9 rounded-lg border-2 text-xs font-bold tabular-nums transition-colors" x-text="p"></button>
+                            <button x-show="p !== '...'" @click="changePage(p)" :aria-label="`Go to page ${p}`"
+                                :class="p === page ? 'bg-amrita-maroon text-white border-amrita-maroon' : 'bg-white text-gray-700 border-gray-200 hover:border-amrita-maroon hover:bg-amrita-light'"
+                                class="w-9 h-9 rounded-lg border-2 text-xs font-bold tabular-nums transition-colors"
+                                x-text="p"></button>
                         </div>
                     </template>
                 </div>
-                <button @click="changePage(page + 1)" :disabled="page >= totalPages" aria-label="Go to next page" class="px-3 py-2 bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg text-xs font-bold text-gray-700 hover:bg-amrita-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5">
+                <button @click="changePage(page + 1)" :disabled="page >= totalPages" aria-label="Go to next page"
+                    class="px-3 py-2 bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg text-xs font-bold text-gray-700 hover:bg-amrita-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5">
                     Next <i class="fa-solid fa-chevron-right text-[10px]"></i>
                 </button>
             </div>
             <!-- Jump to Page -->
             <div class="flex items-center gap-2">
-                <span class="text-xs text-gray-500 font-medium">Page <strong class="text-amrita-maroon" x-text="page"></strong> of <strong x-text="totalPages"></strong></span>
+                <span class="text-xs text-gray-500 font-medium">Page <strong class="text-amrita-maroon"
+                        x-text="page"></strong> of <strong x-text="totalPages"></strong></span>
                 <div class="flex items-center gap-1.5">
-                    <input type="number" x-model="jumpPage" @keydown.enter="jumpToPage()" :min="1" :max="totalPages" placeholder="Jump" aria-label="Jump to page number" class="w-16 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none focus:border-amrita-maroon tabular-nums">
-                    <button @click="jumpToPage()" class="px-3 py-1.5 bg-amrita-maroon hover:bg-amrita-dark text-white text-xs font-bold rounded-lg transition-colors">Go</button>
+                    <input type="number" x-model="jumpPage" @keydown.enter="jumpToPage()" :min="1" :max="totalPages"
+                        placeholder="Jump" aria-label="Jump to page number"
+                        class="w-16 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none focus:border-amrita-maroon tabular-nums">
+                    <button @click="jumpToPage()"
+                        class="px-3 py-1.5 bg-amrita-maroon hover:bg-amrita-dark text-white text-xs font-bold rounded-lg transition-colors">Go</button>
                 </div>
             </div>
         </div>
 
         <!-- Empty Result Recovery Card -->
-        <div x-show="!isResolving && searchHits.length === 0" class="bg-white p-12 rounded-xl border border-gray-200 text-center shadow-sm space-y-5">
-            <div class="w-16 h-16 mx-auto bg-amrita-light rounded-full flex items-center justify-center border-2 border-amrita-maroon/20">
+        <div x-show="!isResolving && searchHits.length === 0"
+            class="bg-white p-12 rounded-xl border border-gray-200 text-center shadow-sm space-y-5">
+            <div
+                class="w-16 h-16 mx-auto bg-amrita-light rounded-full flex items-center justify-center border-2 border-amrita-maroon/20">
                 <i class="fa-solid fa-folder-open text-amrita-maroon text-2xl"></i>
             </div>
             <h4 class="font-extrabold text-gray-800 text-lg">No Matching Exam Papers Found</h4>
-            <p class="text-sm text-gray-500 max-w-md mx-auto">Try broadening your search query, clearing active filters, or exploring popular course codes below.</p>
+            <p class="text-sm text-gray-500 max-w-md mx-auto">Try broadening your search query, clearing active filters,
+                or exploring popular course codes below.</p>
             <div class="flex flex-wrap items-center justify-center gap-2 pt-2">
-                <button @click="searchQuery = '19CSE301'; executeSearch()" class="bg-gray-100 hover:bg-amrita-maroon hover:text-white text-gray-700 text-xs font-bold px-3 py-2 rounded-lg transition-colors border border-gray-200">19CSE301</button>
-                <button @click="searchQuery = '18MAT101'; executeSearch()" class="bg-gray-100 hover:bg-amrita-maroon hover:text-white text-gray-700 text-xs font-bold px-3 py-2 rounded-lg transition-colors border border-gray-200">18MAT101</button>
-                <button @click="searchQuery = 'Operating Systems'; executeSearch()" class="bg-gray-100 hover:bg-amrita-maroon hover:text-white text-gray-700 text-xs font-bold px-3 py-2 rounded-lg transition-colors border border-gray-200">Operating Systems</button>
+                <button @click="searchQuery = '19CSE301'; executeSearch()"
+                    class="bg-gray-100 hover:bg-amrita-maroon hover:text-white text-gray-700 text-xs font-bold px-3 py-2 rounded-lg transition-colors border border-gray-200">19CSE301</button>
+                <button @click="searchQuery = '18MAT101'; executeSearch()"
+                    class="bg-gray-100 hover:bg-amrita-maroon hover:text-white text-gray-700 text-xs font-bold px-3 py-2 rounded-lg transition-colors border border-gray-200">18MAT101</button>
+                <button @click="searchQuery = 'Operating Systems'; executeSearch()"
+                    class="bg-gray-100 hover:bg-amrita-maroon hover:text-white text-gray-700 text-xs font-bold px-3 py-2 rounded-lg transition-colors border border-gray-200">Operating
+                    Systems</button>
             </div>
-            <button @click="resetAll()" class="bg-amrita-maroon hover:bg-amrita-dark text-white text-sm font-bold px-6 py-2.5 rounded-lg transition-colors inline-flex items-center gap-2 shadow-md">
+            <button @click="resetAll()"
+                class="bg-amrita-maroon hover:bg-amrita-dark text-white text-sm font-bold px-6 py-2.5 rounded-lg transition-colors inline-flex items-center gap-2 shadow-md">
                 <i class="fa-solid fa-rotate-left"></i> Clear All Filters
             </button>
         </div>
     </main>
 
     <!-- Floating Batch Download Action Bar -->
-    <div x-show="selectedPaths.length > 0" 
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0 translate-y-4"
-         x-transition:enter-end="opacity-100 translate-y-0"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100 translate-y-0"
-         x-transition:leave-end="opacity-0 translate-y-4"
-         x-cloak
-         class="fixed bottom-0 left-0 right-0 z-50 bg-white shadow-2xl border-t border-gray-200"
-         style="display: none;">
+    <div x-show="selectedPaths.length > 0" x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
+        x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0"
+        x-transition:leave-end="opacity-0 translate-y-4" x-cloak
+        class="fixed bottom-0 left-0 right-0 z-50 bg-white shadow-2xl border-t border-gray-200" style="display: none;">
         <!-- Maroon Accent Top Bar -->
         <div class="h-1 bg-amrita-maroon"></div>
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-4">
@@ -563,13 +708,16 @@
                     <span class="font-extrabold text-sm tabular-nums" x-text="selectedPaths.length"></span>
                 </div>
                 <div class="flex flex-col">
-                    <span class="font-extrabold text-gray-800 text-sm leading-tight" x-text="`${selectedPaths.length} PDF${selectedPaths.length > 1 ? 's' : ''} Selected for Download`"></span>
-                    <span class="text-[11px] text-gray-400 font-medium leading-tight mt-0.5">Files will be packaged as a ZIP archive</span>
+                    <span class="font-extrabold text-gray-800 text-sm leading-tight"
+                        x-text="`${selectedPaths.length} PDF${selectedPaths.length > 1 ? 's' : ''} Selected for Download`"></span>
+                    <span class="text-[11px] text-gray-400 font-medium leading-tight mt-0.5">Files will be packaged as a
+                        ZIP archive</span>
                 </div>
             </div>
             <!-- Right: Actions -->
             <div class="flex items-center gap-2 shrink-0">
-                <button @click="selectedPaths = []" class="text-xs font-bold text-gray-500 hover:text-gray-800 transition-colors px-4 py-2.5 rounded-lg hover:bg-gray-100">
+                <button @click="selectedPaths = []"
+                    class="text-xs font-bold text-gray-500 hover:text-gray-800 transition-colors px-4 py-2.5 rounded-lg hover:bg-gray-100">
                     Clear
                 </button>
                 <button @click="downloadBatch()" :disabled="isBatching"
@@ -582,25 +730,29 @@
     </div>
 
     <!-- Modal for PDF Preview (Strictly Valid Template Syntax for Alpine V3) -->
-    <div x-show="activePdf" 
-         @keydown.escape.window="activePdf = null"
-         x-transition.opacity 
-         class="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4" 
-         style="display: none;">
-        <div class="bg-white w-full max-w-5xl h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-gray-200" @click.away="activePdf = null">
-            
-            <div class="bg-amrita-maroon text-white p-4 flex items-center justify-between border-b-2 border-amrita-gold shrink-0">
+    <div x-show="activePdf" @keydown.escape.window="activePdf = null" x-transition.opacity
+        class="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4" style="display: none;">
+        <div class="bg-white w-full max-w-5xl h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-gray-200"
+            @click.away="activePdf = null">
+
+            <div
+                class="bg-amrita-maroon text-white p-4 flex items-center justify-between border-b-2 border-amrita-gold shrink-0">
                 <div class="truncate mr-4">
-                    <h3 class="font-bold text-base text-white truncate" x-text="activePdf ? `${activePdf.course_code} - ${activePdf.course_title}` : ''"></h3>
-                    <p class="text-xs text-white/80 font-medium truncate" x-text="activePdf ? `${activePdf.department} • ${activePdf.program} • ${activePdf.year}` : ''"></p>
+                    <h3 class="font-bold text-base text-white truncate"
+                        x-text="activePdf ? `${activePdf.course_code} - ${activePdf.course_title}` : ''"></h3>
+                    <p class="text-xs text-white/80 font-medium truncate"
+                        x-text="activePdf ? `${activePdf.department} • ${activePdf.program} • ${activePdf.year}` : ''">
+                    </p>
                 </div>
                 <div class="flex items-center space-x-3 shrink-0">
                     <template x-if="activePdf">
-                        <a :href="pdfUrl(activePdf)" download aria-label="Download PDF from modal" class="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/20 transition-colors flex items-center gap-1.5">
+                        <a :href="pdfUrl(activePdf)" download aria-label="Download PDF from modal"
+                            class="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/20 transition-colors flex items-center gap-1.5">
                             <i class="fa-solid fa-download"></i> Download
                         </a>
                     </template>
-                    <button @click="activePdf = null" aria-label="Close modal preview" class="text-white hover:text-amrita-gold font-bold p-1">
+                    <button @click="activePdf = null" aria-label="Close modal preview"
+                        class="text-white hover:text-amrita-gold font-bold p-1">
                         <i class="fa-solid fa-xmark fa-lg"></i>
                     </button>
                 </div>
@@ -616,13 +768,14 @@
 
     <!-- Ultra-Minimal Footer -->
     <footer class="bg-white text-gray-700 border-t-2 border-amrita-maroon mt-auto py-6">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div
+            class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div class="flex items-center space-x-2 text-xs font-bold text-amrita-maroon uppercase tracking-wider">
                 <span>AMRITA VISHWA VIDYAPEETHAM</span>
                 <span class="text-gray-300">•</span>
-                <span class="text-gray-500 font-medium normal-case tracking-normal">Centralized Examination Paper Archive</span>
             </div>
-            <div class="text-xs text-gray-500 font-medium" x-text="`© ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham. All rights reserved.`">
+            <div class="text-xs text-gray-500 font-medium"
+                x-text="`© ${new Date().getFullYear()} Amrita Vishwa Vidyapeetham. All rights reserved.`">
                 © 2026 Amrita Vishwa Vidyapeetham. All rights reserved.
             </div>
         </div>
@@ -828,7 +981,7 @@
                     this.isResolving = true;
                     const start = performance.now();
                     const params = new URLSearchParams();
-                    
+
                     if (this.searchQuery.trim()) params.append('q', this.searchQuery.trim());
                     if (this.filters.department !== 'All') params.append('department', this.filters.department);
                     if (this.filters.program !== 'All') params.append('program', this.filters.program);
@@ -962,4 +1115,5 @@
         });
     </script>
 </body>
+
 </html>
