@@ -22,6 +22,8 @@
 - **Facet Filtering**: Filter papers by Department, Degree Program, Course Category, and Academic Year.
 - **Batch Downloading**: Select multiple examination papers and download them as a single compressed ZIP archive.
 - **Responsive Interface**: Mobile-first frontend built with TailwindCSS and Alpine.js.
+- **Deterministic Sorting**: Explicit sort options (`code_asc`, `year_asc`, `title_asc`) always override relevance ranking; every ordering carries a stable `p.id ASC` tiebreaker so pagination boundaries never shift between requests.
+- **Sanitized Title Sorting**: Title A-Z sorts by the *cleaned* title. The database stores raw pdftotext extraction output (with junk prefixes), but a registered SQLite scalar function `clean_title(course_title, course_code)` applies the same sanitizer at query time that the API uses for display -- so what you see is what gets sorted. Papers whose extraction failed (fallback titles like `15CSE101 Examination Paper`) sink to the end of the list instead of flooding the top.
 
 ## System Architecture
 
@@ -140,6 +142,21 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now amrita-server
 ```
 
+#### Deploying Backend Updates
+The VM is not git-managed; updates are pushed over SCP and rebuilt in place:
+```bash
+scp Cargo.toml Cargo.lock opc@<VM_IP>:~/
+scp src/main.rs opc@<VM_IP>:~/src/
+scp src/bin/*.rs opc@<VM_IP>:~/src/bin/
+ssh opc@<VM_IP> "~/.cargo/bin/cargo build --release --bin server -j 1"
+# -j 1 is mandatory: the 1GB VM OOMs on parallel linking
+ssh opc@<VM_IP> "sudo systemctl stop amrita-server && \
+  sudo cp ~/target/release/server /usr/local/bin/amrita-server && \
+  sudo systemctl start amrita-server"
+# stop-before-copy is mandatory: copying over a running binary fails with 'Text file busy'
+```
+Note: the systemd unit runs `/usr/local/bin/amrita-server` but the Cargo binary target is named `server`. The copy step bridges the name gap.
+
 ---
 
 ### Edge Network and Ingress Configuration
@@ -217,3 +234,22 @@ Upload files structured by SHA256 hashes to prevent namespace collision:
 ```bash
 rclone sync /path/to/local/papers/ oracle-amrita-papers:exam_papers_vault/ --transfers 16 --checkers 32
 ```
+
+---
+
+### Frontend Auto-Deploy (GitHub Actions)
+The frontend deploys automatically: every push to `main` runs `.github/workflows/deploy.yml`, which uploads `web/` to Cloudflare Pages via `cloudflare/pages-action@v1`.
+
+Required repository secrets (Settings -> Secrets and variables -> Actions):
+- `CLOUDFLARE_API_TOKEN` -- must include **Account | Cloudflare Pages | Edit** permission. A token with only read or Workers permissions fails the action's upload-token endpoint with Cloudflare error code `10000`.
+- `CLOUDFLARE_ACCOUNT_ID`
+
+Manual trigger: Actions -> Deploy to Cloudflare Pages -> Run workflow.
+
+**Backend is NOT auto-deployed** -- see "Deploying Backend Updates" above.
+
+---
+
+## War Stories
+
+Fifty-plus postmortem scenarios covering every infrastructure battle -- SQLite locking, tunnel failures, token scopes, sort-ranking bugs, ASCII documentation discipline -- live in [docs/scenarios/](./docs/scenarios/README.md).
