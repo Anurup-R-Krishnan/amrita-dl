@@ -514,7 +514,7 @@ async fn handle_search(
         (_, Some("title_asc")) => {
             // Fallback titles ("<CODE> Examination Paper" from failed extraction)
             // start with digits and would flood the top of Title A-Z; sink them.
-            " ORDER BY (clean_title(p.course_title, p.course_code) = p.course_code || ' Examination Paper') ASC, \
+            " ORDER BY (substr(clean_title(p.course_title, p.course_code), 1, 1) BETWEEN '0' AND '9') ASC, \
                      clean_title(p.course_title, p.course_code) COLLATE NOCASE ASC, p.id ASC "
         }
         (false, _) => " ORDER BY p.year DESC, p.course_code ASC, p.id ASC ",
