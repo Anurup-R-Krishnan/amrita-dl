@@ -135,6 +135,6 @@ curl -s 'http://localhost/api/search?sort=title_asc&limit=3' | \
 curl -s 'http://localhost/api/search?sort=title_asc&limit=3&offset=19590' | \
   python3 -c 'import sys,json; [print(r["course_title"]) for r in json.load(sys.stdin)]'
 ```
-The observed output sealed the saga. The first page printed `A 802 11 G.`, then `Accountancy`, then `Achieving Excellence.` in flawless order. The final page at `offset=19590` ended with digit-led fallback papers such as `25EEXXX Examination Paper` resting exactly where scenario 56 promised to sink them. Three hashes differed, two extremes matched theory, and for the first time the dropdown, the database, and reality agreed.
+The observed output sealed the saga. The first page printed `A 802 11 G and 802 11 N`, then `Accountancy`, then `Acheving Excellency in Life - an Indian Perspective` ahead of its correctly spelled twin, in flawless NOCASE order. The final page at `offset=19594` ended with digit-led fallback papers such as `25EEXXX Examination Paper` resting exactly where scenario 56 promised to sink them. Three hashes differed, two extremes matched theory, and for the first time the dropdown, the database, and reality agreed.
 
--> *Verify: The loop above prints three distinct md5 hashes across sort modes, an opening sequence led by `A 802 11 G.`, and a closing sequence dominated by digit-led `Examination Paper` fallbacks.*
+-> *Verify: The loop above prints three distinct md5 hashes across sort modes, an opening sequence led by `A 802 11 G and 802 11 N`, and a closing sequence dominated by digit-led `Examination Paper` fallbacks.*
