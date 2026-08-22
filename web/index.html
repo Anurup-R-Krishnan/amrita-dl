@@ -420,6 +420,12 @@
                     <div x-show="open" @click.away="open = false" x-transition.opacity
                         class="absolute right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-1 min-w-[140px]"
                         style="display: none;">
+                        <div @click="changeSort(''); open = false"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': !sort }">
+                            <span>Any</span>
+                            <i x-show="!sort" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
+                        </div>
                         <div @click="changeSort('newest'); open = false"
                             class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
                             :class="{ 'bg-amrita-light text-amrita-maroon font-bold': sort === 'newest' }">
@@ -451,7 +457,7 @@
                     <button @click="open = !open" aria-label="Items per page"
                         class="bg-white border-2 border-gray-200 hover:border-amrita-maroon rounded-lg px-3 py-1.5 text-left font-bold text-xs text-gray-800 flex items-center gap-2 shadow-sm transition-colors tabular-nums">
                         <span class="text-gray-400 font-semibold">Per page:</span>
-                        <span x-text="pageSize ? `${pageSize}` : '24'"></span>
+                        <span x-text="pageSize ? `${pageSize}` : 'Any'"></span>
                         <i class="fa-solid fa-chevron-down text-amrita-maroon ml-2 transition-transform"
                             :class="{ 'rotate-180': open }"></i>
                     </button>
@@ -459,6 +465,12 @@
                     <div x-show="open" @click.away="open = false" x-transition.opacity
                         class="absolute right-0 top-full mt-2 bg-white border-2 border-amrita-maroon rounded-xl shadow-2xl z-30 p-2 space-y-1 min-w-[100px]"
                         style="display: none;">
+                        <div @click="changePageSize(''); open = false"
+                            class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
+                            :class="{ 'bg-amrita-light text-amrita-maroon font-bold': !pageSize }">
+                            <span>Any</span>
+                            <i x-show="!pageSize" class="fa-solid fa-check text-amrita-maroon ml-2"></i>
+                        </div>
                         <div @click="changePageSize(12); open = false"
                             class="p-2 text-xs font-semibold hover:bg-amrita-light rounded-lg cursor-pointer flex items-center justify-between"
                             :class="{ 'bg-amrita-light text-amrita-maroon font-bold': pageSize === 12 }">
@@ -792,7 +804,7 @@
                     category: 'All',
                     year: 'All'
                 },
-                sort: 'newest',
+                sort: '',
                 yearEnd: 'All',
                 copySuccess: false,
                 copySuccessPath: '',
@@ -803,7 +815,7 @@
                 searchHits: [],
                 totalResults: 0,
                 page: 1,
-                pageSize: 24,
+                pageSize: '',
                 totalPages: 1,
                 suggestions: [],
                 suggestIdx: -1,
@@ -841,9 +853,15 @@
                     if (url.has('category') && url.get('category') !== 'All') this.filters.category = url.get('category');
                     if (url.has('year') && url.get('year') !== 'All') this.filters.year = url.get('year');
                     if (url.has('year_end') && url.get('year_end') !== 'All') this.yearEnd = url.get('year_end');
-                    if (url.has('sort')) this.sort = url.get('sort');
+                    if (url.has('sort')) {
+                        const s = url.get('sort');
+                        if (['newest', 'year_asc', 'code_asc', 'title_asc'].includes(s)) this.sort = s;
+                    }
                     if (url.has('page')) this.page = parseInt(url.get('page')) || 1;
-                    if (url.has('limit')) this.pageSize = parseInt(url.get('limit')) || 24;
+                    if (url.has('limit')) {
+                        const l = parseInt(url.get('limit'));
+                        if ([12, 24, 48, 96].includes(l)) this.pageSize = l;
+                    }
                 },
 
                 syncUrl() {
@@ -854,9 +872,9 @@
                     if (this.filters.category !== 'All') params.set('category', this.filters.category);
                     if (this.filters.year !== 'All') params.set('year', this.filters.year);
                     if (this.yearEnd !== 'All') params.set('year_end', this.yearEnd);
-                    if (this.sort !== 'newest') params.set('sort', this.sort);
+                    if (this.sort) params.set('sort', this.sort);
                     if (this.page > 1) params.set('page', this.page);
-                    if (this.pageSize !== 24) params.set('limit', this.pageSize);
+                    if (this.pageSize) params.set('limit', this.pageSize);
                     const qs = params.toString();
                     const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
                     window.history.replaceState({}, '', newUrl);
@@ -990,10 +1008,11 @@
                         params.append('year', this.filters.year);
                         if (this.yearEnd !== 'All') params.append('year_end', this.yearEnd);
                     }
-                    if (this.sort && this.sort !== 'newest') params.append('sort', this.sort);
+                    if (this.sort) params.append('sort', this.sort);
 
-                    params.append('limit', this.pageSize);
-                    params.append('offset', (this.page - 1) * this.pageSize);
+                    const ps = parseInt(this.pageSize) || 24;
+                    params.append('limit', ps);
+                    params.append('offset', (this.page - 1) * ps);
 
                     try {
                         const res = await fetch(`${this.getApiBase()}/api/search?${params.toString()}`);
@@ -1001,7 +1020,7 @@
                         const data = await res.json();
                         this.searchHits = data.results || [];
                         this.totalResults = data.total || 0;
-                        this.totalPages = Math.ceil(this.totalResults / this.pageSize) || 1;
+                        this.totalPages = Math.ceil(this.totalResults / ps) || 1;
                         this.searchTime = (performance.now() - start).toFixed(1);
                         this.syncUrl();
                     } catch (err) {
@@ -1024,13 +1043,13 @@
                 },
 
                 changeSort(newSort) {
-                    if (newSort) this.sort = newSort;
+                    this.sort = newSort || '';
                     this.page = 1;
                     this.executeSearch();
                 },
 
                 changePageSize(newPageSize) {
-                    if (newPageSize) this.pageSize = newPageSize;
+                    this.pageSize = newPageSize || '';
                     this.page = 1;
                     this.executeSearch();
                     const el = document.getElementById('archive');
@@ -1071,9 +1090,9 @@
                     this.searchQuery = '';
                     this.suggestions = [];
                     this.filters = { department: 'All', program: 'All', category: 'All', year: 'All' };
-                    this.sort = 'newest';
+                    this.sort = '';
                     this.yearEnd = 'All';
-                    this.pageSize = 24;
+                    this.pageSize = '';
                     this.page = 1;
                     this.selectedPaths = [];
                     this.viewMode = 'grid';
