@@ -1,4 +1,4 @@
-const OCI_ORIGIN = "https://pens-regulations-cheats-devoted.trycloudflare.com";
+const OCI_ORIGIN = "https://resort-wild-joy-stuart.trycloudflare.com";
 const ALLOWED_PREFIXES = ["/api/"];
 
 export default {
