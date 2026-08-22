@@ -511,7 +511,7 @@ async fn handle_search(
     let order_by = match (has_text_q, params.sort.as_deref()) {
         (_, Some("code_asc")) => " ORDER BY p.course_code ASC, p.id ASC ",
         (_, Some("year_asc")) => " ORDER BY p.year ASC, p.course_code ASC, p.id ASC ",
-        (_, Some("title_asc")) => " ORDER BY clean_title(p.course_title, p.course_code) ASC COLLATE NOCASE, p.id ASC ",
+        (_, Some("title_asc")) => " ORDER BY clean_title(p.course_title, p.course_code) COLLATE NOCASE ASC, p.id ASC ",
         (false, _) => " ORDER BY p.year DESC, p.course_code ASC, p.id ASC ",
         (true, _) => " ORDER BY bm25(papers_fts, 10.0, 5.0, 2.0, 1.0, 1.0, 1.0, 1.0) ASC, p.id ASC ",
     };
