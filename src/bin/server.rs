@@ -511,7 +511,7 @@ async fn handle_search(
     let order_by = match (has_text_q, params.sort.as_deref()) {
         (_, Some("code_asc")) => " ORDER BY p.course_code ASC, p.id ASC ",
         (_, Some("year_asc")) => " ORDER BY p.year ASC, p.course_code ASC, p.id ASC ",
-        (_, Some("title_asc")) => " ORDER BY p.course_title ASC, p.id ASC ",
+        (_, Some("title_asc")) => " ORDER BY clean_title(p.course_title, p.course_code) ASC COLLATE NOCASE, p.id ASC ",
         (false, _) => " ORDER BY p.year DESC, p.course_code ASC, p.id ASC ",
         (true, _) => " ORDER BY bm25(papers_fts, 10.0, 5.0, 2.0, 1.0, 1.0, 1.0, 1.0) ASC, p.id ASC ",
     };
@@ -950,6 +950,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_flags(OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX)
         .with_init(|c| {
             c.execute_batch("PRAGMA query_only = ON; PRAGMA cache_size = -64000; PRAGMA temp_store = MEMORY; PRAGMA mmap_size = 268435456;")?;
+            // Register the same title sanitizer the API display path uses, so
+            // ORDER BY sorts by the cleaned title instead of raw extraction junk.
+            c.create_scalar_function(
+                "clean_title",
+                2,
+                rusqlite::functions::FunctionFlags::SQLITE_UTF8
+                    | rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+                |ctx| {
+                    let title: String = ctx.get(0)?;
+                    let code: String = ctx.get(1).unwrap_or_default();
+                    Ok(sanitize_title(&title, &code))
+                },
+            )?;
             Ok(())
         });
     let db_pool = Pool::builder()
