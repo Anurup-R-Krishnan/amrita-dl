@@ -1,4 +1,10 @@
-const OCI_ORIGIN = "https://enable-helicopter-carried-melbourne.trycloudflare.com";
+// Fallback origin used when KV has no published value yet (fresh deploy,
+// KV binding missing in preview, etc). The VM keeps this current via
+// POST /api/_origin whenever its cloudflared quick-tunnel URL changes -
+// see scripts/amrita_selfheal.sh. Update this manually only as a last resort.
+const FALLBACK_ORIGIN = "https://enable-helicopter-carried-melbourne.trycloudflare.com";
+
+const TUNNEL_URL_RE = /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/;
 
 function sanitizeDownloadFilename(name) {
   if (!name) return null;
@@ -8,11 +14,50 @@ function sanitizeDownloadFilename(name) {
   return safe;
 }
 
-export async function onRequest(context) {
-  const url = new URL(context.request.url);
-  const target = OCI_ORIGIN + url.pathname + url.search;
+async function handleOriginUpdate(context) {
+  const { request, env } = context;
+  if (request.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405 });
+  }
+  if (!env.ORIGIN_UPDATE_SECRET) {
+    return new Response("Not configured", { status: 501 });
+  }
+  const auth = request.headers.get("Authorization") || "";
+  if (auth !== `Bearer ${env.ORIGIN_UPDATE_SECRET}`) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  const body = (await request.text()).trim();
+  if (!TUNNEL_URL_RE.test(body)) {
+    return new Response("Invalid origin URL", { status: 400 });
+  }
+  if (!env.ORIGIN_KV) {
+    return new Response("KV not bound", { status: 501 });
+  }
+  await env.ORIGIN_KV.put("current", body);
+  return new Response("OK", { status: 200 });
+}
 
-  if (context.request.method === "OPTIONS") {
+export async function onRequest(context) {
+  const { request, env } = context;
+  const url = new URL(request.url);
+
+  if (url.pathname === "/api/_origin") {
+    return handleOriginUpdate(context);
+  }
+
+  let origin = FALLBACK_ORIGIN;
+  try {
+    const kvValue = env.ORIGIN_KV ? await env.ORIGIN_KV.get("current", { cacheTtl: 60 }) : null;
+    if (kvValue && TUNNEL_URL_RE.test(kvValue)) {
+      origin = kvValue;
+    }
+  } catch (e) {
+    // KV unavailable - fall through to FALLBACK_ORIGIN
+  }
+
+  const target = origin + url.pathname + url.search;
+
+  if (request.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
       headers: {
@@ -23,11 +68,11 @@ export async function onRequest(context) {
     });
   }
 
-  const method = context.request.method;
+  const method = request.method;
   const resp = await fetch(target, {
     method,
-    headers: context.request.headers,
-    body: method !== "GET" && method !== "HEAD" ? context.request.body : undefined,
+    headers: request.headers,
+    body: method !== "GET" && method !== "HEAD" ? request.body : undefined,
   });
 
   const newHeaders = new Headers(resp.headers);

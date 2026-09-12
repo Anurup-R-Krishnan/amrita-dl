@@ -143,19 +143,29 @@ sudo systemctl enable --now amrita-server
 ```
 
 #### Deploying Backend Updates
-The VM is not git-managed; updates are pushed over SCP and rebuilt in place:
+Backend updates are automated: `.github/workflows/deploy-backend.yml` runs on every push to `main` touching `src/**`, `Cargo.toml`/`Cargo.lock`, or the deploy/self-heal scripts under `scripts/`. It rsyncs the source to the VM over a dedicated deploy-only SSH key (`OCI_SSH_KEY`/`OCI_HOST`/`OCI_USER`/`OCI_KNOWN_HOSTS` repo secrets), runs `scripts/oci_deploy_remote.sh` on the box, and health-gates the result -- a failed health check automatically rolls back to the previous binary (`/usr/local/bin/amrita-server.prev`). Trigger it manually via Actions -> Deploy Backend (OCI) -> Run workflow.
+
+`scripts/oci_deploy_remote.sh` (runs on the VM) does, in order: guard on free disk/swap, `cargo build --release --locked --bin server -j 1` (`-j 1` is mandatory -- the box OOMs on parallel linking with only 498MB RAM), install the systemd units if they changed, `restorecon` the binary (SELinux is Enforcing), stop-before-copy (`Text file busy` otherwise), start, then poll `localhost/api/health` before declaring success.
+
+The VM's `~/amrita-dl` is in fact a git clone of this repo, but the repo is private and the box has no stored GitHub credential, so CI deploys via `rsync` over SSH rather than `git pull`. Manual escape hatch, unchanged from before:
 ```bash
-scp Cargo.toml Cargo.lock opc@<VM_IP>:~/
-scp src/main.rs opc@<VM_IP>:~/src/
-scp src/bin/*.rs opc@<VM_IP>:~/src/bin/
-ssh opc@<VM_IP> "~/.cargo/bin/cargo build --release --bin server -j 1"
-# -j 1 is mandatory: the 1GB VM OOMs on parallel linking
+scp src/bin/*.rs opc@<VM_IP>:~/amrita-dl/src/bin/
+ssh opc@<VM_IP> "cd ~/amrita-dl && ~/.cargo/bin/cargo build --release --bin server -j 1"
 ssh opc@<VM_IP> "sudo systemctl stop amrita-server && \
-  sudo cp ~/target/release/server /usr/local/bin/amrita-server && \
+  sudo cp ~/amrita-dl/target/release/server /usr/local/bin/amrita-server && \
   sudo systemctl start amrita-server"
-# stop-before-copy is mandatory: copying over a running binary fails with 'Text file busy'
 ```
 Note: the systemd unit runs `/usr/local/bin/amrita-server` but the Cargo binary target is named `server`. The copy step bridges the name gap.
+
+#### Self-Healing Tunnel Origin
+The tunnel is an ephemeral `cloudflared` quick tunnel (`*.trycloudflare.com`) -- it gets a brand-new hostname every time it (re)starts. Rather than requiring a code change + redeploy whenever that happens, `scripts/amrita_selfheal.sh` runs every 2 minutes via `amrita-selfheal.timer` and:
+1. Restarts `amrita-server` if its local health check fails.
+2. Reads the current tunnel hostname out of `cloudflared-tunnel`'s journal and, if it changed, publishes it to a Cloudflare KV namespace (`ORIGIN_KV`, bound to the `exampapersamrita` Pages project) via an authenticated `POST /api/_origin` on `functions/api/[[path]].js`.
+3. Restarts `cloudflared-tunnel` if the current hostname stops responding.
+
+`functions/api/[[path]].js` reads the live origin from KV (falling back to a hardcoded constant if KV is empty or unbound) instead of hardcoding it. The shared secret (`ORIGIN_UPDATE_SECRET`) lives in `/etc/amrita/origin.env` on the VM and as a Cloudflare Pages secret -- it is never committed or put in a GitHub secret. This means a tunnel restart (crash, VM reboot) no longer causes a silent multi-day outage.
+
+A named Cloudflare Tunnel (stable hostname, no self-heal script needed) is the more permanent fix, but requires owning a Cloudflare-managed DNS zone -- not done here.
 
 ---
 
@@ -238,15 +248,18 @@ rclone sync /path/to/local/papers/ oracle-amrita-papers:exam_papers_vault/ --tra
 ---
 
 ### Frontend Auto-Deploy (GitHub Actions)
-The frontend deploys automatically: every push to `main` runs `.github/workflows/deploy.yml`, which uploads `web/` to Cloudflare Pages via `cloudflare/pages-action@v1`.
+The frontend deploys automatically: every push to `main` touching `web/**` or `functions/**` runs `.github/workflows/deploy.yml`, which uploads `web/` to Cloudflare Pages via `cloudflare/wrangler-action@v3` (`cloudflare/pages-action@v1` is archived/deprecated upstream -- migrated off it).
 
 Required repository secrets (Settings -> Secrets and variables -> Actions):
-- `CLOUDFLARE_API_TOKEN` -- must include **Account | Cloudflare Pages | Edit** permission. A token with only read or Workers permissions fails the action's upload-token endpoint with Cloudflare error code `10000`.
+- `CLOUDFLARE_API_TOKEN` -- must include **Account | Cloudflare Pages | Edit** permission. A token with only read or Workers permissions fails with Cloudflare error code `10000`.
 - `CLOUDFLARE_ACCOUNT_ID`
 
 Manual trigger: Actions -> Deploy to Cloudflare Pages -> Run workflow.
 
-**Backend is NOT auto-deployed** -- see "Deploying Backend Updates" above.
+**Backend deploys are automated too** -- see "Deploying Backend Updates" above.
+
+### Health Monitoring
+`.github/workflows/health.yml` probes `https://exampapersamrita.pages.dev/api/health` every 6 hours (`workflow_dispatch` also available) and opens/comments-on/closes a single GitHub issue labelled `outage`. This is a passive outside check -- the actual healing (restarting the backend or the tunnel) happens on the VM via `amrita-selfheal.timer`, described above.
 
 ---
 

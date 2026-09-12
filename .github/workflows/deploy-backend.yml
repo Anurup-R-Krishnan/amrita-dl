@@ -1,0 +1,81 @@
+name: Deploy Backend (OCI)
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'scripts/amrita-server.service'
+      - 'scripts/amrita_selfheal.sh'
+      - 'scripts/amrita-selfheal.service'
+      - 'scripts/amrita-selfheal.timer'
+      - 'scripts/oci_deploy_remote.sh'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Test and lint (must pass before touching the VM)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --locked --bin server
+      - run: cargo clippy --locked --bin server -- -D warnings
+
+  deploy:
+    name: Build on VM and restart (with rollback)
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          OCI_SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
+          OCI_KNOWN_HOSTS: ${{ secrets.OCI_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$OCI_SSH_KEY" > ~/.ssh/oci.key
+          chmod 600 ~/.ssh/oci.key
+          printf '%s\n' "$OCI_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Sync source to the VM
+        env:
+          OCI_USER: ${{ secrets.OCI_USER }}
+          OCI_HOST: ${{ secrets.OCI_HOST }}
+        run: |
+          SSH_OPTS="-i ~/.ssh/oci.key -o ServerAliveInterval=30 -o ServerAliveCountMax=20"
+          TARGET="$OCI_USER@$OCI_HOST"
+          rsync -az --delete -e "ssh $SSH_OPTS" src/ "$TARGET:amrita-dl/src/"
+          rsync -az          -e "ssh $SSH_OPTS" Cargo.toml Cargo.lock "$TARGET:amrita-dl/"
+          rsync -az          -e "ssh $SSH_OPTS" scripts/ "$TARGET:amrita-dl/scripts/"
+
+      - name: Remote build, install, health-gate (rolls back on failure)
+        env:
+          OCI_USER: ${{ secrets.OCI_USER }}
+          OCI_HOST: ${{ secrets.OCI_HOST }}
+        run: |
+          ssh -i ~/.ssh/oci.key -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
+            "$OCI_USER@$OCI_HOST" 'bash -s' < scripts/oci_deploy_remote.sh
+
+      - name: Confirm the public path is healthy
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS -m 15 https://exampapersamrita.pages.dev/api/health | grep -q '"status":"ok"'; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Public health check never went green after deploy" >&2
+          exit 1

@@ -1,0 +1,50 @@
+name: Health Check
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe /api/health (3 attempts, 20s apart)
+        id: probe
+        run: |
+          ok=0
+          for i in 1 2 3; do
+            if curl -fsS -m 15 https://exampapersamrita.pages.dev/api/health | grep -q '"status":"ok"'; then
+              ok=1
+              break
+            fi
+            sleep 20
+          done
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update outage issue
+        if: steps.probe.outputs.ok != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing=$(gh issue list --label outage --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Still down as of $(date -u +%Y-%m-%dT%H:%M:%SZ)."
+          else
+            gh issue create --title "Site health check failed" \
+              --label outage \
+              --body "https://exampapersamrita.pages.dev/api/health did not return status:ok after 3 attempts, as of $(date -u +%Y-%m-%dT%H:%M:%SZ). Check the OCI VM (amrita-server, cloudflared-tunnel) and the KV-published origin."
+          fi
+
+      - name: Close outage issue on recovery
+        if: steps.probe.outputs.ok == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing=$(gh issue list --label outage --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Recovered as of $(date -u +%Y-%m-%dT%H:%M:%SZ)."
+            gh issue close "$existing"
+          fi

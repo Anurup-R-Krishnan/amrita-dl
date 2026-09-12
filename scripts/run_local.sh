@@ -21,7 +21,7 @@ export STORAGE_PUBLIC_URL="${STORAGE_PUBLIC_URL:-https://objectstorage.ap-hydera
 # INDEXED_ROOT only needed for local disk fallback (not used when STORAGE_PUBLIC_URL is set)
 export INDEXED_ROOT="${INDEXED_ROOT:-${ROOT_DIR}/amrita-exam-papers-indexed}"
 
-export CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,https://amritapapers.pages.dev,https://amritapapers-1x5.pages.dev}"
+export CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,https://exampapersamrita.pages.dev}"
 
 echo "[INFO] Starting amrita-dl server"
 echo "[INFO] PORT              = ${PORT}"

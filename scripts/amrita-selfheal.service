@@ -1,0 +1,9 @@
+[Unit]
+Description=Amrita self-heal check (backend health + tunnel origin publish)
+After=network-online.target amrita-server.service cloudflared-tunnel.service
+
+[Service]
+Type=oneshot
+User=opc
+EnvironmentFile=-/etc/amrita/origin.env
+ExecStart=/usr/local/bin/amrita_selfheal.sh
