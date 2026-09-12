@@ -1,4 +1,4 @@
-const OCI_ORIGIN = "https://resort-wild-joy-stuart.trycloudflare.com";
+const OCI_ORIGIN = "https://enable-helicopter-carried-melbourne.trycloudflare.com";
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
@@ -15,9 +15,11 @@ export async function onRequest(context) {
     });
   }
 
+  const method = context.request.method;
   const resp = await fetch(target, {
-    method: context.request.method,
+    method,
     headers: context.request.headers,
+    body: method !== "GET" && method !== "HEAD" ? context.request.body : undefined,
   });
 
   const newHeaders = new Headers(resp.headers);

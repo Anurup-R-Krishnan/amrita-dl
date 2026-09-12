@@ -1,4 +1,4 @@
-const OCI_ORIGIN = "https://resort-wild-joy-stuart.trycloudflare.com";
+const OCI_ORIGIN = "https://enable-helicopter-carried-melbourne.trycloudflare.com";
 const ALLOWED_PREFIXES = ["/api/"];
 
 export default {
