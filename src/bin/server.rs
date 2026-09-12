@@ -124,6 +124,7 @@ struct HealthResponse {
     status: String,
     database: String,
     total_papers: usize,
+    batch_download_enabled: bool,
 }
 
 fn get_current_year() -> i32 {
@@ -865,6 +866,7 @@ async fn handle_health(
             status: "degraded".to_string(),
             database: "connection_failed".to_string(),
             total_papers: 0,
+            batch_download_enabled: state.storage_public_url.is_none(),
         }),
     };
 
@@ -876,6 +878,7 @@ async fn handle_health(
         status: "ok".to_string(),
         database: "connected".to_string(),
         total_papers: total,
+        batch_download_enabled: state.storage_public_url.is_none(),
     })
 }
 

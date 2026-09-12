@@ -386,7 +386,7 @@
                     class="text-amrita-maroon font-extrabold tabular-nums">0</strong> matching exam papers</span>
             <div class="flex items-center gap-2 flex-wrap">
                 <!-- Select All Page Button -->
-                <button @click="toggleSelectAllPage()"
+                <button x-show="batchDownloadEnabled" @click="toggleSelectAllPage()"
                     :class="isPageAllSelected() ? 'bg-amrita-maroon text-white border-amrita-maroon' : 'bg-white text-gray-700 border-gray-200 hover:border-amrita-maroon hover:bg-amrita-light'"
                     aria-label="Select or deselect all papers on this page"
                     class="px-2.5 py-1.5 border-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5">
@@ -561,7 +561,7 @@
                     <!-- Card Actions: Ghost/Outline style, split button -->
                     <div class="px-5 pb-4 pl-6 pt-1 flex items-center justify-between gap-2 border-t border-gray-100">
                         <div class="flex items-center gap-2">
-                            <label class="flex items-center cursor-pointer shrink-0 select-none">
+                            <label x-show="batchDownloadEnabled" class="flex items-center cursor-pointer shrink-0 select-none">
                                 <input type="checkbox" :value="item.relative_path" x-model="selectedPaths"
                                     class="w-4 h-4 rounded border-2 border-gray-300 text-amrita-maroon focus:ring-0 focus:ring-offset-0 cursor-pointer">
                             </label>
@@ -600,7 +600,7 @@
                 <div class="bg-white rounded-xl border shadow-sm hover:shadow-md transition-all flex items-center gap-4 overflow-hidden relative p-3 pr-4"
                     :class="selectedPaths.includes(item.relative_path) ? 'border-amrita-maroon' : 'border-gray-200'">
                     <!-- Checkbox -->
-                    <label class="flex items-center cursor-pointer shrink-0 select-none">
+                    <label x-show="batchDownloadEnabled" class="flex items-center cursor-pointer shrink-0 select-none">
                         <input type="checkbox" :value="item.relative_path" x-model="selectedPaths"
                             class="w-4 h-4 rounded border-2 border-gray-300 text-amrita-maroon focus:ring-0 focus:ring-offset-0 cursor-pointer">
                     </label>
@@ -711,7 +711,7 @@
     </main>
 
     <!-- Floating Batch Download Action Bar -->
-    <div x-show="selectedPaths.length > 0" x-transition:enter="transition ease-out duration-300"
+    <div x-show="batchDownloadEnabled && selectedPaths.length > 0" x-transition:enter="transition ease-out duration-300"
         x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
         x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0"
         x-transition:leave-end="opacity-0 translate-y-4" x-cloak
@@ -764,7 +764,7 @@
                 </div>
                 <div class="flex items-center space-x-3 shrink-0">
                     <template x-if="activePdf">
-                        <a :href="pdfUrl(activePdf)" download aria-label="Download PDF from modal"
+                        <a :href="pdfUrl(activePdf)" :download="activePdf.relative_path.split('/').pop()" aria-label="Download PDF from modal"
                             class="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/20 transition-colors flex items-center gap-1.5">
                             <i class="fa-solid fa-download"></i> Download
                         </a>
@@ -830,12 +830,24 @@
                 activePdf: null,
                 selectedPaths: [],
                 isBatching: false,
+                batchDownloadEnabled: true,
 
                 async init() {
                     this.$watch('filters', () => { this.page = 1; });
                     this.loadFromUrl();
+                    this.fetchHealth();
                     await this.fetchFacets();
                     await this.executeSearch();
+                },
+
+                async fetchHealth() {
+                    try {
+                        const res = await fetch(`${this.getApiBase()}/api/health`);
+                        const data = await res.json();
+                        this.batchDownloadEnabled = data.batch_download_enabled !== false;
+                    } catch (e) {
+                        console.error('Health check error:', e);
+                    }
                 },
 
                 async copyShareLink(item) {
