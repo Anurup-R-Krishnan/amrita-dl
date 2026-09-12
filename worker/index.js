@@ -34,7 +34,7 @@ export default {
     if (url.pathname === "/api/pdf" && !newHeaders.has("Content-Disposition")) {
       const safeName = sanitizeDownloadFilename(url.searchParams.get("dl"));
       if (safeName) {
-        newHeaders.set("Content-Disposition", `attachment; filename="${safeName}"`);
+        newHeaders.set("Content-Disposition", `inline; filename="${safeName}"`);
       }
     }
     return new Response(resp.body, {

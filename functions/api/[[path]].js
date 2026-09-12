@@ -81,7 +81,12 @@ export async function onRequest(context) {
   if (url.pathname === "/api/pdf" && !newHeaders.has("Content-Disposition")) {
     const safeName = sanitizeDownloadFilename(url.searchParams.get("dl"));
     if (safeName) {
-      newHeaders.set("Content-Disposition", `attachment; filename="${safeName}"`);
+      // inline (not attachment): lets the modal's <iframe> preview render the
+      // PDF in-browser, while still supplying the real filename for the
+      // browser's own Save-As / native PDF-viewer download button. Our own
+      // download links force a save anyway via the HTML `download` attribute,
+      // which doesn't depend on this header.
+      newHeaders.set("Content-Disposition", `inline; filename="${safeName}"`);
     }
   }
 
