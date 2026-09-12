@@ -852,7 +852,8 @@
 
                 async copyShareLink(item) {
                     const param = item && item.id ? `id=${item.id}` : `path=${encodeURIComponent((item && item.relative_path) || '')}`;
-                    const directPdfUrl = `${window.location.origin}/api/pdf?${param}`;
+                    const dl = item && item.relative_path ? `&dl=${encodeURIComponent(item.relative_path.split('/').pop())}` : '';
+                    const directPdfUrl = `${window.location.origin}/api/pdf?${param}${dl}`;
                     try {
                         await navigator.clipboard.writeText(directPdfUrl);
                         this.copySuccess = true;
@@ -934,7 +935,8 @@
                 pdfUrl(itemOrId) {
                     if (!itemOrId) return '';
                     if (typeof itemOrId === 'object' && itemOrId.id) {
-                        return `${this.getApiBase()}/api/pdf?id=${itemOrId.id}`;
+                        const dl = itemOrId.relative_path ? `&dl=${encodeURIComponent(itemOrId.relative_path.split('/').pop())}` : '';
+                        return `${this.getApiBase()}/api/pdf?id=${itemOrId.id}${dl}`;
                     }
                     return `${this.getApiBase()}/api/pdf?id=${itemOrId}`;
                 },

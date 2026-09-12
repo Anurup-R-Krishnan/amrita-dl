@@ -6,7 +6,7 @@
 use std::{
     collections::HashMap,
     net::SocketAddr,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, LazyLock, RwLock},
     time::{Duration, Instant},
 };
@@ -58,6 +58,7 @@ struct AppState {
     raw_root: PathBuf,
     storage_public_url: Option<String>,
     facet_cache: Arc<RwLock<Option<CachedFacets>>>,
+    http_client: reqwest::Client,
 }
 
 #[derive(Deserialize)]
@@ -792,6 +793,22 @@ fn resolve_pdf_path(identifier: &str, state: &AppState) -> Option<PathBuf> {
     None
 }
 
+fn storage_download_url(canonical: &Path, state: &AppState, storage_base: &str) -> String {
+    let clean_storage_base = storage_base.trim_end_matches('/');
+    let rel_path = canonical
+        .strip_prefix(&state.indexed_root)
+        .or_else(|_| canonical.strip_prefix(&state.raw_root))
+        .unwrap_or(canonical);
+
+    let encoded_segments: Vec<String> = rel_path
+        .components()
+        .map(|c| urlencoding::encode(&c.as_os_str().to_string_lossy()).to_string())
+        .collect();
+    let encoded_rel_path = encoded_segments.join("/");
+
+    format!("{clean_storage_base}/{encoded_rel_path}")
+}
+
 async fn handle_pdf(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>,
@@ -813,19 +830,7 @@ async fn handle_pdf(
     };
 
     if let Some(ref storage_base) = state.storage_public_url {
-        let clean_storage_base = storage_base.trim_end_matches('/');
-        let rel_path = canonical
-            .strip_prefix(&state.indexed_root)
-            .or_else(|_| canonical.strip_prefix(&state.raw_root))
-            .unwrap_or(&canonical);
-
-        let encoded_segments: Vec<String> = rel_path
-            .components()
-            .map(|c| urlencoding::encode(&c.as_os_str().to_string_lossy()).to_string())
-            .collect();
-        let encoded_rel_path = encoded_segments.join("/");
-
-        let redirect_url = format!("{clean_storage_base}/{encoded_rel_path}");
+        let redirect_url = storage_download_url(&canonical, &state, storage_base);
         if let Ok(header_val) = header::HeaderValue::from_str(&redirect_url) {
             let mut headers = HeaderMap::new();
             headers.insert(header::LOCATION, header_val);
@@ -866,7 +871,7 @@ async fn handle_health(
             status: "degraded".to_string(),
             database: "connection_failed".to_string(),
             total_papers: 0,
-            batch_download_enabled: state.storage_public_url.is_none(),
+            batch_download_enabled: true,
         }),
     };
 
@@ -878,7 +883,7 @@ async fn handle_health(
         status: "ok".to_string(),
         database: "connected".to_string(),
         total_papers: total,
-        batch_download_enabled: state.storage_public_url.is_none(),
+        batch_download_enabled: true,
     })
 }
 
@@ -886,14 +891,6 @@ async fn handle_batch_download(
     State(state): State<Arc<AppState>>,
     Json(req): Json<BatchDownloadRequest>,
 ) -> impl IntoResponse {
-    if state.storage_public_url.is_some() {
-        return (
-            StatusCode::NOT_IMPLEMENTED,
-            "Batch zip download is not supported in Object Storage redirect mode. Please download papers directly.",
-        )
-            .into_response();
-    }
-
     if req.paths.is_empty() || req.paths.len() > 50 {
         return (StatusCode::BAD_REQUEST, "Invalid number of paths (1-50 allowed)").into_response();
     }
@@ -905,17 +902,29 @@ async fn handle_batch_download(
             .compression_method(zip::CompressionMethod::Stored);
 
         for rel_path in &req.paths {
-            if let Some(canonical) = resolve_pdf_path(rel_path, &state) {
-                let filename = canonical
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("document.pdf");
+            let canonical = match resolve_pdf_path(rel_path, &state) {
+                Some(p) => p,
+                None => continue,
+            };
+            let filename = canonical
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("document.pdf");
 
-                if let Ok(bytes) = tokio_fs::read(&canonical).await {
-                    if zip.start_file(filename, zip_opts).is_ok() {
-                        use std::io::Write;
-                        let _ = zip.write_all(&bytes);
-                    }
+            let bytes = if let Some(ref storage_base) = state.storage_public_url {
+                let url = storage_download_url(&canonical, &state, storage_base);
+                match state.http_client.get(&url).send().await {
+                    Ok(resp) if resp.status().is_success() => resp.bytes().await.ok().map(|b| b.to_vec()),
+                    _ => None,
+                }
+            } else {
+                tokio_fs::read(&canonical).await.ok()
+            };
+
+            if let Some(bytes) = bytes {
+                if zip.start_file(filename, zip_opts).is_ok() {
+                    use std::io::Write;
+                    let _ = zip.write_all(&bytes);
                 }
             }
         }
@@ -1000,6 +1009,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         raw_root,
         storage_public_url,
         facet_cache: Arc::new(RwLock::new(None)),
+        http_client: reqwest::Client::new(),
     });
 
     let cors_allowed_origins_env = std::env::var("CORS_ALLOWED_ORIGINS")
@@ -1152,6 +1162,7 @@ mod tests {
             raw_root: PathBuf::from("/nonexistent/raw/root"),
             storage_public_url: Some("https://objectstorage.ap-hyderabad-1.oraclecloud.com/n/mytenancy/b/oracle-amrita-bucket/o".to_string()),
             facet_cache: Arc::new(RwLock::new(None)),
+            http_client: reqwest::Client::new(),
         });
 
         let resolved = resolve_pdf_path("42", &state);
@@ -1201,6 +1212,7 @@ mod tests {
             raw_root: PathBuf::from("/nonexistent/raw/root"),
             storage_public_url: None,
             facet_cache: Arc::new(RwLock::new(None)),
+            http_client: reqwest::Client::new(),
         });
 
         let resolved = resolve_pdf_path("43", &state);
@@ -1257,6 +1269,7 @@ mod tests {
             raw_root: temp_dir.join("raw"),
             storage_public_url: Some("https://storage.oracle.com/bucket".to_string()),
             facet_cache: Arc::new(RwLock::new(None)),
+            http_client: reqwest::Client::new(),
         });
 
         // Lookup by ID
@@ -1280,12 +1293,27 @@ mod tests {
             "https://storage.oracle.com/bucket/Computer%20Science%20%26%20Engineering/BTech/Core/2024/EndSem/15CSE101_paper.pdf"
         );
 
-        // Object storage batch download unsupported (501)
+        // Object storage batch download: fetches each file from the storage backend.
+        // Uses an unroutable URL (not storage_state's real-looking one) so the test
+        // fails fast on connection refused instead of making a real network call;
+        // a fetch failure degrades to a valid but empty zip, not an error response.
+        let unreachable_state = Arc::new(AppState {
+            db_pool: pool.clone(),
+            indexed_root: indexed_root.clone(),
+            raw_root: temp_dir.join("raw"),
+            storage_public_url: Some("http://127.0.0.1:1".to_string()),
+            facet_cache: Arc::new(RwLock::new(None)),
+            http_client: reqwest::Client::new(),
+        });
         let batch_req = BatchDownloadRequest {
             paths: vec![sample_pdf_rel.to_string()],
         };
-        let batch_res = handle_batch_download(State(storage_state), Json(batch_req)).await.into_response();
-        assert_eq!(batch_res.status(), StatusCode::NOT_IMPLEMENTED);
+        let batch_res = handle_batch_download(State(unreachable_state), Json(batch_req)).await.into_response();
+        assert_eq!(batch_res.status(), StatusCode::OK);
+        assert_eq!(
+            batch_res.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/zip"
+        );
 
         // 2. Local File Serving Mode
         let local_state = Arc::new(AppState {
@@ -1294,6 +1322,7 @@ mod tests {
             raw_root: temp_dir.join("raw"),
             storage_public_url: None,
             facet_cache: Arc::new(RwLock::new(None)),
+            http_client: reqwest::Client::new(),
         });
 
         let mut local_query = HashMap::new();

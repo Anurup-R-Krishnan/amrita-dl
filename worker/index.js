@@ -1,6 +1,14 @@
 const OCI_ORIGIN = "https://enable-helicopter-carried-melbourne.trycloudflare.com";
 const ALLOWED_PREFIXES = ["/api/"];
 
+function sanitizeDownloadFilename(name) {
+  if (!name) return null;
+  let safe = name.replace(/[\r\n"\\]/g, "").replace(/[^\w .()-]/g, "_").trim().slice(0, 150);
+  if (!safe) return null;
+  if (!safe.toLowerCase().endsWith(".pdf")) safe += ".pdf";
+  return safe;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -22,6 +30,12 @@ export default {
     newHeaders.set("Access-Control-Allow-Headers", "Content-Type");
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: newHeaders });
+    }
+    if (url.pathname === "/api/pdf" && !newHeaders.has("Content-Disposition")) {
+      const safeName = sanitizeDownloadFilename(url.searchParams.get("dl"));
+      if (safeName) {
+        newHeaders.set("Content-Disposition", `attachment; filename="${safeName}"`);
+      }
     }
     return new Response(resp.body, {
       status: resp.status,
