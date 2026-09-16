@@ -263,6 +263,4 @@ Manual trigger: Actions -> Deploy to Cloudflare Pages -> Run workflow.
 
 ---
 
-## War Stories
 
-Fifty-plus postmortem scenarios covering every infrastructure battle -- SQLite locking, tunnel failures, token scopes, sort-ranking bugs, ASCII documentation discipline -- live in [docs/scenarios/](./docs/scenarios/README.md).
