@@ -25,3 +25,5 @@ ssh-key-*
 *.db-wal
 server.log
 tunnel.log
+
+.codegraph/
