@@ -561,7 +561,8 @@
                     <!-- Card Actions: Ghost/Outline style, split button -->
                     <div class="px-5 pb-4 pl-6 pt-1 flex items-center justify-between gap-2 border-t border-gray-100">
                         <div class="flex items-center gap-2">
-                            <label x-show="batchDownloadEnabled" class="flex items-center cursor-pointer shrink-0 select-none">
+                            <label x-show="batchDownloadEnabled"
+                                class="flex items-center cursor-pointer shrink-0 select-none">
                                 <input type="checkbox" :value="item.relative_path" x-model="selectedPaths"
                                     class="w-4 h-4 rounded border-2 border-gray-300 text-amrita-maroon focus:ring-0 focus:ring-offset-0 cursor-pointer">
                             </label>
@@ -764,7 +765,8 @@
                 </div>
                 <div class="flex items-center space-x-3 shrink-0">
                     <template x-if="activePdf">
-                        <a :href="pdfUrl(activePdf)" :download="activePdf.relative_path.split('/').pop()" aria-label="Download PDF from modal"
+                        <a :href="pdfUrl(activePdf)" :download="activePdf.relative_path.split('/').pop()"
+                            aria-label="Download PDF from modal"
                             class="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/20 transition-colors flex items-center gap-1.5">
                             <i class="fa-solid fa-download"></i> Download
                         </a>
@@ -792,13 +794,12 @@
                 <span>AMRITA VISHWA VIDYAPEETHAM</span>
                 <span class="text-gray-300">•</span>
             </div>
-            <div class="text-xs text-gray-500 font-medium"
-                x-text="`© ${new Date().getFullYear()} Anurup R Krishnan`">
-                © 2026 Anurup R Krishnan
+            <div class="text-xs text-gray-500 font-medium" x-text="`© ${new Date().getFullYear()} Anurup R Krishnan`">
+                © Built by Anurup R Krishnan
             </div>
         </div>
     </footer>
-    
+
     <!-- Alpine.js Application Engine Logic -->
     <script>
         document.addEventListener('alpine:init', () => {
